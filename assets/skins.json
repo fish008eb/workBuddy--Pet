@@ -1,0 +1,66 @@
+{
+  "version": 1,
+  "note": "形象素材版权归 WorkBuddy / 腾讯所有，此处仅登记下载地址，仓库不附带图片文件。",
+  "skins": [
+    {
+      "id": "quantum",
+      "name": "量子喵",
+      "url": "https://download.codebuddy.cn/growth-plan/sprite_anim_556x556_compressed.png"
+    },
+    {
+      "id": "sweet",
+      "name": "甜心喵",
+      "url": "https://acc-1258344699.cos.accelerate.myqcloud.com/web/workbuddy/assets/work_cat_sprite_anim/work_cat02_sprite_anim.png"
+    },
+    {
+      "id": "pixel",
+      "name": "像素喵",
+      "url": "https://acc-1258344699.cos.accelerate.myqcloud.com/web/workbuddy/assets/work_cat_sprite_anim/work_cat09_sprite_anim.png"
+    },
+    {
+      "id": "latte",
+      "name": "拿铁喵",
+      "url": "https://acc-1258344699.cos.accelerate.myqcloud.com/web/workbuddy/assets/work_cat_sprite_anim/work_cat03_sprite_anim.png"
+    },
+    {
+      "id": "floral",
+      "name": "花艺喵",
+      "url": "https://acc-1258344699.cos.accelerate.myqcloud.com/web/workbuddy/assets/work_cat_sprite_anim/work_cat06_sprite_anim.png"
+    },
+    {
+      "id": "astro",
+      "name": "星际喵",
+      "url": "https://download.codebuddy.cn/growth-plan/astronaut_556.min.png"
+    },
+    {
+      "id": "dragon",
+      "name": "龙焰喵",
+      "url": "https://download.codebuddy.cn/growth-plan/sprite_dragon_shift28.png"
+    },
+    {
+      "id": "rich",
+      "name": "暴富喵",
+      "url": "https://download.codebuddy.cn/growth-plan/%E6%9A%B4%E5%AF%8C%E5%96%B5%20apng.png"
+    },
+    {
+      "id": "academy",
+      "name": "学院喵",
+      "url": "https://staging-download.codebuddy.cn/operation-platform/assets/_general/d2e075f40fae68af.apng"
+    },
+    {
+      "id": "archive",
+      "name": "档案喵",
+      "url": "https://staging-download.codebuddy.cn/operation-platform/assets/_general/bcf1502df8c0f5c6.apng"
+    },
+    {
+      "id": "design",
+      "name": "设计喵",
+      "url": "https://staging-download.codebuddy.cn/operation-platform/assets/_general/9399962ea9a253dc.apng"
+    },
+    {
+      "id": "elite",
+      "name": "和平精英喵",
+      "url": "https://staging-download.codebuddy.cn/operation-platform/assets/_general/0b0c4a8212d4b52c.apng"
+    }
+  ]
+}

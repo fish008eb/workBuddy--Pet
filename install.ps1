@@ -3,19 +3,21 @@
   install.ps1 — 安装 WorkBuddy 用量宠物面板
 
   做的事：
-    1. 把 src\ 下的脚本复制到 WorkBuddy 的 hooks 目录
-    2. 抓取并拆分形象图（可跳过）
+    1. 把 src\ 下的脚本、tools\ 下的工具复制到 WorkBuddy 的 hooks 目录
+    2. 抓取并拆分默认形象（可用 -Skin 指定，-SkipSprite 跳过）
     3. 往 ~/.workbuddy/settings.json 注册 SessionStart / Stop 两个 hook
     4. 立即启动面板
 
   用法：
     powershell -ExecutionPolicy Bypass -File install.ps1
+    powershell -ExecutionPolicy Bypass -File install.ps1 -Skin quantum    # 指定初始形象
     powershell -ExecutionPolicy Bypass -File install.ps1 -SkipSprite      # 不下载形象
     powershell -ExecutionPolicy Bypass -File install.ps1 -BuildNative     # 顺手编译原生 exe
 #>
 param(
     [string]$HooksDir = (Join-Path $env:USERPROFILE '.workbuddy\hooks'),
     [string]$SettingsPath = (Join-Path $env:USERPROFILE '.workbuddy\settings.json'),
+    [string]$Skin = 'dragon',
     [switch]$SkipSprite,
     [switch]$BuildNative
 )
@@ -51,26 +53,35 @@ New-Item -ItemType Directory -Force -Path $HooksDir | Out-Null
 Copy-Item -Path (Join-Path $root 'src\*') -Destination $HooksDir -Recurse -Force
 Write-Ok '已复制 turn-usage.js / start-panel.js / panel-wpf.ps1 / WbPet.cs / run-panel.vbs / build-pet.cmd / toast.ps1'
 
+$toolsTarget = Join-Path $HooksDir 'tools'
+New-Item -ItemType Directory -Force -Path $toolsTarget | Out-Null
+Copy-Item -Path (Join-Path $root 'tools\*.js') -Destination $toolsTarget -Force
+Write-Ok '已复制 tools\fetch-sprite.js / switch-skin.js'
+
+$assetsTarget = Join-Path $HooksDir 'assets'
+New-Item -ItemType Directory -Force -Path $assetsTarget | Out-Null
+Copy-Item -Path (Join-Path $root 'assets\skins.json') -Destination $assetsTarget -Force
+Write-Ok '已复制 assets\skins.json（形象清单）'
+
 # ---------- 2. 形象资源 ----------
-$framesDir = Join-Path $HooksDir 'assets\frames'
-$frameCount = 0
-if (Test-Path $framesDir) {
-    $frameCount = @(Get-ChildItem $framesDir -Filter '*.png' -ErrorAction SilentlyContinue).Count
-}
+$currentFile = Join-Path $HooksDir 'assets\skins\current.txt'
+$switcher = Join-Path $toolsTarget 'switch-skin.js'
+$hasSkin = Test-Path $currentFile
 
 if ($SkipSprite) {
-    Write-Warn2 '已跳过形象抓取（-SkipSprite）'
-} elseif ($frameCount -gt 0) {
-    Write-Ok "形象帧已存在（$frameCount 帧），跳过"
+    Write-Warn2 '已跳过形象下载（-SkipSprite）'
+} elseif ($hasSkin) {
+    $cur = (Get-Content $currentFile -Encoding UTF8 | Select-Object -First 1)
+    Write-Ok "已有形象（$cur），跳过下载"
 } else {
-    Write-Step '抓取并拆分形象动画'
+    Write-Step "下载并拆分形象：$Skin"
     try {
-        & node (Join-Path $root 'tools\fetch-sprite.js') --out $framesDir
-        $frameCount = @(Get-ChildItem $framesDir -Filter '*.png').Count
-        Write-Ok "已生成 $frameCount 帧"
+        & node $switcher $Skin
+        if (Test-Path $currentFile) { Write-Ok '形象就绪' }
+        else { Write-Warn2 '形象下载未完成，可在面板右键菜单里重新选择' }
     } catch {
-        Write-Warn2 "形象抓取失败：$($_.Exception.Message)"
-        Write-Warn2 '面板会以空白形象运行，可稍后手动执行：node tools/fetch-sprite.js --out "' + $framesDir + '"'
+        Write-Warn2 "形象下载失败：$($_.Exception.Message)"
+        Write-Warn2 '面板仍可运行，稍后右键「换形象」重试'
     }
 }
 

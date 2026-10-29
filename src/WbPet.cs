@@ -2,10 +2,12 @@
 // Build: build-pet.cmd  (csc /target:winexe, no console window)
 //
 // Behaviour:
-//   - loops the APNG frames extracted from sprite_dragon_shift28.png
+//   - loops the APNG frames of the active skin (assets/skins/<id>/)
 //   - dark icon-card speech bubble above the head: shown on hover, and for 6s
 //     after each completed turn (panel-data.txt rewritten by the Stop hook)
 //   - bounces once per new turn
+//   - right-click > "换形象" switches skins by calling tools/switch-skin.js;
+//     the panel polls assets/skins/current.txt and reloads without a restart
 //   - hides itself when the WorkBuddy main window is gone
 //
 // Written for C# 5 (csc 4.0.30319): no interpolation, no expression bodies.
@@ -14,6 +16,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Windows;
 using System.Windows.Controls;
@@ -36,10 +39,20 @@ namespace WbPet
         private static readonly Brush TitleBrush = MakeBrush(0x8A, 0x93, 0xA8);
         private static readonly Brush TimeBrush = MakeBrush(0x5C, 0x64, 0x78);
 
+        private readonly string _baseDir;
         private readonly string _dataFile;
-        private readonly string _framesDir;
+        private readonly string _assetsDir;
+        private readonly string _skinsDir;
+        private readonly string _catalogFile;
+        private readonly string _currentFile;
+        private readonly string _statusFile;
+        private readonly string _switchScript;
         private readonly List<BitmapImage> _frames = new List<BitmapImage>();
         private readonly List<int> _delays = new List<int>();
+        private readonly Dictionary<string, MenuItem> _skinItems = new Dictionary<string, MenuItem>();
+
+        private string _loadedSkin = string.Empty;
+        private string _footerBase = string.Empty;
 
         private int _idx = 0;
         private bool _firstLoad = true;
@@ -61,6 +74,7 @@ namespace WbPet
         private DispatcherTimer _dataTimer;
         private DispatcherTimer _hideTimer;
         private DispatcherTimer _lifeTimer;
+        private DispatcherTimer _skinTimer;
 
         private static Brush MakeBrush(byte r, byte g, byte b)
         {
@@ -71,8 +85,14 @@ namespace WbPet
 
         public PetWindow(string baseDir, string dataFile)
         {
+            _baseDir = baseDir;
             _dataFile = dataFile;
-            _framesDir = Path.Combine(Path.Combine(baseDir, "assets"), "frames");
+            _assetsDir = Path.Combine(baseDir, "assets");
+            _skinsDir = Path.Combine(_assetsDir, "skins");
+            _catalogFile = Path.Combine(_assetsDir, "skins.json");
+            _currentFile = Path.Combine(_skinsDir, "current.txt");
+            _statusFile = Path.Combine(_skinsDir, "status.txt");
+            _switchScript = Path.Combine(Path.Combine(baseDir, "tools"), "switch-skin.js");
 
             Width = 340;
             Height = 400;
@@ -90,8 +110,10 @@ namespace WbPet
             Left = wa.Right - Width - 16;
             Top = wa.Bottom - Height - 8;
 
+            _loadedSkin = ReadCurrentSkinId();
+
             BuildUi();
-            LoadFrames();
+            LoadFrames(ResolveFramesDir(_loadedSkin));
             StartTimers();
             UpdatePanel();
         }
@@ -262,6 +284,29 @@ namespace WbPet
             refresh.Click += delegate { UpdatePanel(); };
             menu.Items.Add(refresh);
 
+            List<string[]> skins = ReadCatalog();
+            if (skins.Count > 0)
+            {
+                MenuItem skinRoot = new MenuItem();
+                skinRoot.Header = "换形象";
+                foreach (string[] s in skins)
+                {
+                    MenuItem item = new MenuItem();
+                    item.Header = s[1];
+                    item.Tag = s[0];
+                    if (s[0] == _loadedSkin)
+                    {
+                        item.IsChecked = true;
+                        item.FontWeight = FontWeights.Bold;
+                    }
+                    item.Click += OnSkinClick;
+                    _skinItems[s[0]] = item;
+                    skinRoot.Items.Add(item);
+                }
+                menu.Items.Add(skinRoot);
+                menu.Items.Add(new Separator());
+            }
+
             MenuItem hide = new MenuItem();
             hide.Header = "Hide for 10 min";
             hide.Click += delegate
@@ -281,40 +326,135 @@ namespace WbPet
             return menu;
         }
 
-        // ---------- frames ----------
-        private void LoadFrames()
+        private void OnSkinClick(object sender, RoutedEventArgs e)
+        {
+            MenuItem clicked = sender as MenuItem;
+            if (clicked == null) { return; }
+            foreach (KeyValuePair<string, MenuItem> kv in _skinItems)
+            {
+                kv.Value.IsChecked = false;
+                kv.Value.FontWeight = FontWeights.Normal;
+            }
+            clicked.IsChecked = true;
+            clicked.FontWeight = FontWeights.Bold;
+            SwitchSkin((string)clicked.Tag);
+        }
+
+        // ---------- frames / skins ----------
+        private string ReadCurrentSkinId()
         {
             try
             {
-                if (!Directory.Exists(_framesDir)) { return; }
-                string[] files = Directory.GetFiles(_framesDir, "*.png");
-                Array.Sort(files, StringComparer.OrdinalIgnoreCase);
+                if (!File.Exists(_currentFile)) { return string.Empty; }
+                string[] lines = File.ReadAllLines(_currentFile);
+                return lines.Length > 0 ? lines[0].Trim() : string.Empty;
+            }
+            catch (Exception) { return string.Empty; }
+        }
 
-                string delayFile = Path.Combine(_framesDir, "delays.txt");
+        private string ResolveFramesDir(string skinId)
+        {
+            if (!string.IsNullOrEmpty(skinId))
+            {
+                string dir = Path.Combine(_skinsDir, skinId);
+                if (File.Exists(Path.Combine(dir, "manifest.json"))) { return dir; }
+            }
+            string legacy = Path.Combine(_assetsDir, "frames");
+            if (File.Exists(Path.Combine(legacy, "manifest.json"))) { return legacy; }
+            return null;
+        }
+
+        private void LoadFrames(string dir)
+        {
+            _frames.Clear();
+            _delays.Clear();
+            _idx = 0;
+
+            if (dir == null)
+            {
+                _mascot.Source = null;
+                return;
+            }
+
+            try
+            {
+                string delayFile = Path.Combine(dir, "delays.txt");
                 if (File.Exists(delayFile))
                 {
-                    string[] lines = File.ReadAllLines(delayFile);
-                    foreach (string line in lines)
+                    foreach (string line in File.ReadAllLines(delayFile))
                     {
                         int d;
                         if (int.TryParse(line.Trim(), out d)) { _delays.Add(d); }
                     }
                 }
 
+                string[] files = Directory.GetFiles(dir, "*.png");
+                Array.Sort(files, StringComparer.OrdinalIgnoreCase);
                 foreach (string f in files)
                 {
                     BitmapImage bmp = new BitmapImage();
                     bmp.BeginInit();
                     bmp.CacheOption = BitmapCacheOption.OnLoad;
+                    bmp.CreateOptions = BitmapCreateOptions.IgnoreImageCache;
                     bmp.UriSource = new Uri(f, UriKind.Absolute);
                     bmp.EndInit();
                     bmp.Freeze();
                     _frames.Add(bmp);
                 }
 
-                if (_frames.Count > 0) { _mascot.Source = _frames[0]; }
+                if (_frames.Count > 0)
+                {
+                    _mascot.Source = _frames[0];
+                    if (_frameTimer != null && _frames.Count > 1 && !_frameTimer.IsEnabled)
+                    {
+                        _frameTimer.Start();
+                    }
+                }
             }
             catch (Exception) { }
+        }
+
+        private List<string[]> ReadCatalog()
+        {
+            List<string[]> result = new List<string[]>();
+            try
+            {
+                if (!File.Exists(_catalogFile)) { return result; }
+                string raw = File.ReadAllText(_catalogFile);
+                MatchCollection ms = Regex.Matches(
+                    raw, "\"id\"\\s*:\\s*\"([^\"]+)\"[\\s\\S]*?\"name\"\\s*:\\s*\"([^\"]+)\"");
+                foreach (Match m in ms)
+                {
+                    result.Add(new string[] { m.Groups[1].Value, m.Groups[2].Value });
+                }
+            }
+            catch (Exception) { }
+            return result;
+        }
+
+        private void SwitchSkin(string skinId)
+        {
+            try
+            {
+                if (!File.Exists(_switchScript)) { return; }
+                ProcessStartInfo psi = new ProcessStartInfo();
+                psi.FileName = "node";
+                psi.Arguments = "\"" + _switchScript + "\" " + skinId;
+                psi.WorkingDirectory = _baseDir;
+                psi.UseShellExecute = false;
+                psi.CreateNoWindow = true;
+                psi.WindowStyle = ProcessWindowStyle.Hidden;
+                Process.Start(psi);
+                ShowBubbleFor(8);
+            }
+            catch (Exception) { }
+        }
+
+        private void ShowBubbleFor(int seconds)
+        {
+            _tempUntil = DateTime.Now.AddSeconds(seconds);
+            _hideTimer.Stop();
+            _bubble.Visibility = Visibility.Visible;
         }
 
         private void StartTimers()
@@ -354,6 +494,21 @@ namespace WbPet
                 }
             };
             _lifeTimer.Start();
+
+            _skinTimer = new DispatcherTimer();
+            _skinTimer.Interval = TimeSpan.FromMilliseconds(900);
+            _skinTimer.Tick += delegate
+            {
+                string id = ReadCurrentSkinId();
+                if (id.Length == 0 || id == _loadedSkin) { return; }
+                string dir = ResolveFramesDir(id);
+                if (dir == null) { return; }
+                _loadedSkin = id;
+                LoadFrames(dir);
+                ShowBubbleFor(4);
+                Bounce();
+            };
+            _skinTimer.Start();
         }
 
         private void OnFrameTick(object sender, EventArgs e)
@@ -437,7 +592,8 @@ namespace WbPet
 
                 string todayCredit = GetValue(map, "todayCredit", "-");
                 string sessions = GetValue(map, "todaySessions", "0");
-                _footer.Text = "\u4ECA\u65E5 " + todayCredit + " \u79EF\u5206 \u00B7 " + sessions + " \u4F1A\u8BDD";
+                _footerBase = "\u4ECA\u65E5 " + todayCredit + " \u79EF\u5206 \u00B7 " + sessions + " \u4F1A\u8BDD";
+                _footer.Text = _footerBase;
 
                 if (changed)
                 {
@@ -447,6 +603,21 @@ namespace WbPet
                     Bounce();
                 }
                 _firstLoad = false;
+            }
+            catch (Exception) { }
+
+            try
+            {
+                if (File.Exists(_statusFile))
+                {
+                    string st = File.ReadAllText(_statusFile).Trim();
+                    if (st.Length > 0) { _footer.Text = st; }
+                    else if (_footerBase.Length > 0) { _footer.Text = _footerBase; }
+                }
+                else if (_footerBase.Length > 0)
+                {
+                    _footer.Text = _footerBase;
+                }
             }
             catch (Exception) { }
         }

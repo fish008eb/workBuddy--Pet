@@ -14,6 +14,10 @@
  *   <out>/manifest.json         帧尺寸 + 每帧延时
  *   <out>/delays.txt            纯文本延时表（C# 版直接读这个）
  *
+ * 也可以作为模块使用：
+ *   const { extractTo } = require('./fetch-sprite');
+ *   await extractTo(source, outDir, 220);
+ *
  * 说明：
  *   APNG 的帧只存变化区域，需要按 blend_op / dispose_op 合成到整张画布，
  *   再统一裁剪到所有帧的并集包围盒，否则各帧位置会错位。
@@ -28,12 +32,16 @@ const zlib = require('zlib');
 const https = require('https');
 const http = require('http');
 
-const DEFAULT_SOURCE = 'https://download.codebuddy.cn/growth-plan/sprite_dragon_shift28.png';
 const PNG_SIG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+const DEFAULT_SOURCE = 'https://download.codebuddy.cn/growth-plan/sprite_dragon_shift28.png';
 
 // ---------- args ----------
 function parseArgs(argv) {
-  const opts = { source: DEFAULT_SOURCE, out: path.join(__dirname, '..', 'assets', 'frames'), height: 220 };
+  const opts = {
+    source: DEFAULT_SOURCE,
+    out: path.join(__dirname, '..', 'assets', 'frames'),
+    height: 220,
+  };
   const rest = [];
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
@@ -66,7 +74,7 @@ function fetchBuffer(url, redirects = 0) {
       res.on('end', () => resolve(Buffer.concat(bufs)));
     });
     req.on('error', reject);
-    req.setTimeout(30000, () => { req.destroy(new Error('请求超时')); });
+    req.setTimeout(60000, () => { req.destroy(new Error('请求超时')); });
   });
 }
 
@@ -285,24 +293,16 @@ function unionBox(frames, W, H, step = 2) {
   return { minX, minY, maxX, maxY };
 }
 
-// ---------- main ----------
-async function main() {
-  const opts = parseArgs(process.argv.slice(2));
-  if (opts.help) {
-    console.log(fs.readFileSync(__filename, 'utf8').split('*/')[0]);
-    return;
-  }
-
-  const isUrl = /^https?:\/\//i.test(opts.source);
-  console.log('源：' + (isUrl ? opts.source : path.resolve(opts.source)));
-
-  let buf;
-  if (isUrl) {
-    buf = await fetchBuffer(opts.source);
-  } else {
-    buf = fs.readFileSync(opts.source);
-  }
-  console.log('大小：' + (buf.length / 1024).toFixed(0) + ' KB');
+/**
+ * 把图片拆成序列帧写入 outDir。
+ * @param {string} source  URL 或本地路径
+ * @param {string} outDir  输出目录
+ * @param {number} height  目标帧高度
+ * @returns {Promise<{frames:number,w:number,h:number,ms:number}>}
+ */
+async function extractTo(source, outDir, height = 220) {
+  const isUrl = /^https?:\/\//i.test(source);
+  const buf = isUrl ? await fetchBuffer(source) : fs.readFileSync(source);
 
   if (buf.slice(0, 8).toString('hex') !== PNG_SIG.toString('hex')) {
     throw new Error('不是 PNG 文件（可能是 JPEG/WebP）');
@@ -316,10 +316,8 @@ async function main() {
     const parsed = splitApng(buf);
     W = parsed.W;
     H = parsed.H;
-    console.log('APNG：' + parsed.frames.length + ' 帧，画布 ' + W + 'x' + H);
     frames = composite(W, H, parsed.frames);
   } else {
-    console.log('静态 PNG，按单帧处理');
     const img = decodePng(buf);
     const rgba = Buffer.alloc(img.w * img.h * 4);
     for (let i = 0, j = 0; i < img.data.length; i += img.ch, j += 4) {
@@ -341,15 +339,14 @@ async function main() {
   const maxY = Math.min(H - 1, box.maxY + pad);
   const cw = maxX - minX + 1;
   const chh = maxY - minY + 1;
-  console.log('内容包围盒：' + cw + 'x' + chh);
 
-  const scale = Math.min(1, opts.height / chh);
+  const scale = Math.min(1, height / chh);
   const tw = Math.max(1, Math.round(cw * scale));
   const th = Math.max(1, Math.round(chh * scale));
 
-  fs.mkdirSync(opts.out, { recursive: true });
-  for (const f of fs.readdirSync(opts.out)) {
-    if (/\.png$/i.test(f)) { fs.unlinkSync(path.join(opts.out, f)); }
+  fs.mkdirSync(outDir, { recursive: true });
+  for (const f of fs.readdirSync(outDir)) {
+    if (/\.png$/i.test(f)) { fs.unlinkSync(path.join(outDir, f)); }
   }
 
   const manifest = [];
@@ -383,27 +380,48 @@ async function main() {
       }
     }
     const name = 'f' + String(i).padStart(2, '0') + '_' + tw + 'x' + th + '.png';
-    fs.writeFileSync(path.join(opts.out, name), encodePng(tw, th, out));
+    fs.writeFileSync(path.join(outDir, name), encodePng(tw, th, out));
     manifest.push({ file: name, delay: Math.round(frame.delay * 1000) });
   });
 
   fs.writeFileSync(
-    path.join(opts.out, 'manifest.json'),
+    path.join(outDir, 'manifest.json'),
     JSON.stringify({ w: tw, h: th, frames: manifest }, null, 2),
     'utf8'
   );
   fs.writeFileSync(
-    path.join(opts.out, 'delays.txt'),
+    path.join(outDir, 'delays.txt'),
     manifest.map((m) => m.delay).join('\n') + '\n',
     'utf8'
   );
 
-  const total = manifest.reduce((s, m) => s + m.delay, 0);
-  console.log('完成：' + manifest.length + ' 帧，' + tw + 'x' + th + '，一圈 ' + total + 'ms');
+  return {
+    frames: manifest.length,
+    w: tw,
+    h: th,
+    ms: manifest.reduce((s, m) => s + m.delay, 0),
+  };
+}
+
+// ---------- cli ----------
+async function main() {
+  const opts = parseArgs(process.argv.slice(2));
+  if (opts.help) {
+    console.log(fs.readFileSync(__filename, 'utf8').split('*/')[0]);
+    return;
+  }
+
+  console.log('源：' + (/^https?:\/\//i.test(opts.source) ? opts.source : path.resolve(opts.source)));
+  const r = await extractTo(opts.source, opts.out, opts.height);
+  console.log('完成：' + r.frames + ' 帧，' + r.w + 'x' + r.h + '，一圈 ' + r.ms + 'ms');
   console.log('输出目录：' + path.resolve(opts.out));
 }
 
-main().catch((e) => {
-  console.error('失败：' + (e && e.message ? e.message : e));
-  process.exit(1);
-});
+module.exports = { extractTo, fetchBuffer };
+
+if (require.main === module) {
+  main().catch((e) => {
+    console.error('失败：' + (e && e.message ? e.message : e));
+    process.exit(1);
+  });
+}

@@ -101,7 +101,25 @@ foreach ($f in $files) {
 $frames = Join-Path $HooksDir 'assets\frames'
 if (Test-Path $frames) {
     Remove-Item -LiteralPath $frames -Recurse -Force -ErrorAction SilentlyContinue
-    Write-Ok '已删除形象帧'
+    Write-Ok '已删除形象帧（legacy 目录）'
+}
+
+$skins = Join-Path $HooksDir 'assets\skins'
+if (Test-Path $skins) {
+    Remove-Item -LiteralPath $skins -Recurse -Force -ErrorAction SilentlyContinue
+    Write-Ok '已删除形象缓存（skins 目录）'
+}
+
+$catalog = Join-Path $HooksDir 'assets\skins.json'
+if (Test-Path $catalog) {
+    Remove-Item -LiteralPath $catalog -Force -ErrorAction SilentlyContinue
+    Write-Ok '已删除 skins.json'
+}
+
+$tools = Join-Path $HooksDir 'tools'
+if (Test-Path $tools) {
+    Remove-Item -LiteralPath $tools -Recurse -Force -ErrorAction SilentlyContinue
+    Write-Ok '已删除 tools 目录'
 }
 
 Write-Host ''

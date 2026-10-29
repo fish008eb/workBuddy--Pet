@@ -1,13 +1,17 @@
-# 运行时生成的形象帧（由 tools/fetch-sprite.js 产出，版权不属于本仓库）
+# 运行时生成的形象帧（由 tools/switch-skin.js 产出，版权不属于本仓库）
 assets/frames/*.png
 assets/frames/manifest.json
 assets/frames/delays.txt
 !assets/frames/.gitkeep
 
+# 各形象的本地缓存（含 current.txt / status.txt）
+assets/skins/
+
 # 运行时数据与日志
 panel-data.txt
 panel-lines.txt
 last-turn.txt
+panel-err.log
 *.log
 WbPet.exe
 

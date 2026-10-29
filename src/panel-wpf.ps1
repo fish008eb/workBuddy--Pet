@@ -8,13 +8,29 @@
 # per-pixel alpha. WinForms can only do a colour-key (TransparencyKey), which
 # leaves a coloured fringe on anti-aliased edges.
 #
-# NOTE: this file is intentionally pure ASCII. All display text is read from
-# $DataFile (key=value lines written by the Stop hook).
+# Skins: assets/skins.json holds the catalogue, assets/skins/<id>/ holds the
+# extracted frames, assets/skins/current.txt records the active one. The panel
+# polls current.txt, so switching a skin never needs a restart.
+#
+# NOTE: this file must stay UTF-8 **with BOM**; PowerShell 5.1 reads BOM-less
+# files as ANSI and would garble the Chinese literals below.
 
 Add-Type -AssemblyName PresentationFramework
 Add-Type -AssemblyName PresentationCore
 Add-Type -AssemblyName WindowsBase
 Add-Type -AssemblyName System.Drawing
+
+# 未捕获异常写日志，避免窗口无声消失
+try {
+    $script:ErrLog = Join-Path $PSScriptRoot 'panel-err.log'
+    [System.Windows.Threading.Dispatcher]::CurrentDispatcher.add_UnhandledException({
+        param($s, $e)
+        try {
+            Add-Content -LiteralPath $script:ErrLog -Encoding UTF8 -Value ("[{0}] unhandled: {1}" -f (Get-Date -Format 's'), $e.Exception.Message)
+        } catch { }
+        $e.Handled = $true
+    })
+} catch { }
 
 # single instance
 $mutex = New-Object System.Threading.Mutex($false, 'Global\WorkBuddyUsagePanel')
@@ -23,6 +39,13 @@ if (-not $mutex.WaitOne(0)) { exit 0 }
 $script:DataFile = $DataFile
 $script:HookDir = $PSScriptRoot
 if (-not $script:DataFile) { $script:DataFile = Join-Path $script:HookDir 'panel-data.txt' }
+
+$script:AssetsDir = Join-Path $script:HookDir 'assets'
+$script:SkinsDir = Join-Path $script:AssetsDir 'skins'
+$script:CatalogFile = Join-Path $script:AssetsDir 'skins.json'
+$script:CurrentFile = Join-Path $script:SkinsDir 'current.txt'
+$script:StatusFile = Join-Path $script:SkinsDir 'status.txt'
+$script:SwitchScript = Join-Path $script:HookDir 'tools\switch-skin.js'
 
 $xaml = @'
 <Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
@@ -145,35 +168,96 @@ $win.Top = $wa.Bottom - $win.Height - 8
 $script:frames = New-Object System.Collections.ArrayList
 $script:frameDelays = New-Object System.Collections.ArrayList
 $script:frameIdx = 0
+$script:loadedSkin = ''
 
-$manifestPath = Join-Path $script:HookDir 'assets\frames\manifest.json'
-if (Test-Path -LiteralPath $manifestPath) {
+function Get-Bitmap([string]$file) {
+    $bmp = New-Object System.Windows.Media.Imaging.BitmapImage
+    $stream = [System.IO.File]::OpenRead($file)
+    try {
+        $bmp.BeginInit()
+        $bmp.CacheOption = [System.Windows.Media.Imaging.BitmapCacheOption]::OnLoad
+        $bmp.StreamSource = $stream
+        $bmp.EndInit()
+        $bmp.Freeze()
+    } finally {
+        $stream.Close()
+    }
+    return $bmp
+}
+
+function Get-SkinCatalogue {
+    if (-not (Test-Path -LiteralPath $script:CatalogFile)) { return @() }
+    try {
+        $json = Get-Content -LiteralPath $script:CatalogFile -Raw -Encoding UTF8 | ConvertFrom-Json
+        if ($json.skins) { return @($json.skins) }
+    } catch { }
+    return @()
+}
+
+function Get-CurrentSkin {
+    try {
+        if (-not (Test-Path -LiteralPath $script:CurrentFile)) { return @{ id = ''; name = '' } }
+        $lines = Get-Content -LiteralPath $script:CurrentFile -Encoding UTF8
+        $id = if ($lines.Count -ge 1) { $lines[0].Trim() } else { '' }
+        $name = if ($lines.Count -ge 2) { $lines[1].Trim() } else { $id }
+        return @{ id = $id; name = $name }
+    } catch {
+        return @{ id = ''; name = '' }
+    }
+}
+
+function Get-FramesDir([string]$skinId) {
+    if ($skinId) {
+        $dir = Join-Path $script:SkinsDir $skinId
+        if (Test-Path -LiteralPath (Join-Path $dir 'manifest.json')) { return $dir }
+    }
+    $legacy = Join-Path $script:AssetsDir 'frames'
+    if (Test-Path -LiteralPath (Join-Path $legacy 'manifest.json')) { return $legacy }
+    return $null
+}
+
+function Load-Frames([string]$dir) {
+    $script:Mascot.Source = $null
+    $script:frames.Clear()
+    $script:frameDelays.Clear()
+    $script:frameIdx = 0
+    if (-not $dir) { return }
+
+    $manifestPath = Join-Path $dir 'manifest.json'
     try {
         $manifest = Get-Content -LiteralPath $manifestPath -Raw -Encoding UTF8 | ConvertFrom-Json
         foreach ($f in $manifest.frames) {
-            $fp = Join-Path $script:HookDir ('assets\frames\' + $f.file)
+            $fp = Join-Path $dir $f.file
             if (Test-Path -LiteralPath $fp) {
-                $bmp = New-Object System.Windows.Media.Imaging.BitmapImage
-                $bmp.BeginInit()
-                $bmp.CacheOption = [System.Windows.Media.Imaging.BitmapCacheOption]::OnLoad
-                $bmp.UriSource = New-Object System.Uri($fp)
-                $bmp.EndInit()
-                $bmp.Freeze()
-                [void]$script:frames.Add($bmp)
-                [void]$script:frameDelays.Add([int]$f.delay)
+                try {
+                    [void]$script:frames.Add((Get-Bitmap $fp))
+                    [void]$script:frameDelays.Add([int]$f.delay)
+                } catch {
+                    try {
+                        Add-Content -LiteralPath (Join-Path $script:HookDir 'panel-err.log') -Encoding UTF8 `
+                            -Value ("[{0}] frame {1}: {2}" -f (Get-Date -Format 's'), $f.file, $_.Exception.Message)
+                    } catch { }
+                }
             }
         }
     } catch { }
-}
 
-if ($script:frames.Count -gt 0) {
-    $script:Mascot.Source = $script:frames[0]
+    if ($script:frames.Count -gt 0) {
+        $script:Mascot.Source = $script:frames[0]
+        if ($script:frameTimer) {
+            $script:frameTimer.Interval = [TimeSpan]::FromMilliseconds(83)
+            if ($script:frames.Count -gt 1 -and -not $script:frameTimer.IsEnabled) { $script:frameTimer.Start() }
+        }
+    }
+    # 换肤会留下上一套帧对象，主动回收一次
+    [System.GC]::Collect()
+    [System.GC]::WaitForPendingFinalizers()
 }
 
 $script:frameTimer = New-Object System.Windows.Threading.DispatcherTimer
 $script:frameTimer.Interval = [TimeSpan]::FromMilliseconds(83)
 $script:frameTimer.Add_Tick({
-    if ($script:frames.Count -lt 2) { $script:frameTimer.Stop(); return }
+    if ($script:frames.Count -lt 2) { return }
     $script:frameIdx = ($script:frameIdx + 1) % $script:frames.Count
     $script:Mascot.Source = $script:frames[$script:frameIdx]
     $d = 83
@@ -181,6 +265,10 @@ $script:frameTimer.Add_Tick({
     if ($d -lt 30) { $d = 30 }
     $script:frameTimer.Interval = [TimeSpan]::FromMilliseconds($d)
 })
+
+$skinNow = Get-CurrentSkin
+$script:loadedSkin = $skinNow.id
+Load-Frames (Get-FramesDir $skinNow.id)
 if ($script:frames.Count -gt 1) { $script:frameTimer.Start() }
 
 # ---- bubble visibility ----------------------------------------------------
@@ -225,6 +313,7 @@ function Start-Bounce {
 # ---- data -----------------------------------------------------------------
 $script:lastWrite = [DateTime]::MinValue
 $script:firstLoad = $true
+$script:footerBase = ''
 
 function Read-PanelData {
     $map = @{}
@@ -242,29 +331,41 @@ function Read-PanelData {
 
 function Update-Panel {
     try {
-        if (-not (Test-Path -LiteralPath $script:DataFile)) { return }
-        $item = Get-Item -LiteralPath $script:DataFile
-        $changed = ($item.LastWriteTime -ne $script:lastWrite)
-        $script:lastWrite = $item.LastWriteTime
+        if (Test-Path -LiteralPath $script:DataFile) {
+            $item = Get-Item -LiteralPath $script:DataFile
+            $changed = ($item.LastWriteTime -ne $script:lastWrite)
+            $script:lastWrite = $item.LastWriteTime
 
-        $d = Read-PanelData
-        if ($d.Count -eq 0) { return }
+            $d = Read-PanelData
+            if ($d.Count -gt 0) {
+                if ($d.ContainsKey('time')) { $script:TimeText.Text = $d['time'] }
+                if ($d.ContainsKey('turnIn')) { $script:TurnInVal.Text = $d['turnIn'] }
+                if ($d.ContainsKey('turnOut')) { $script:TurnOutVal.Text = $d['turnOut'] }
+                if ($d.ContainsKey('cacheRate')) { $script:CacheVal.Text = $d['cacheRate'] + '%' }
+                if ($d.ContainsKey('credit')) { $script:CreditVal.Text = $d['credit'] }
 
-        if ($d.ContainsKey('time')) { $script:TimeText.Text = $d['time'] }
-        if ($d.ContainsKey('turnIn')) { $script:TurnInVal.Text = $d['turnIn'] }
-        if ($d.ContainsKey('turnOut')) { $script:TurnOutVal.Text = $d['turnOut'] }
-        if ($d.ContainsKey('cacheRate')) { $script:CacheVal.Text = $d['cacheRate'] + '%' }
-        if ($d.ContainsKey('credit')) { $script:CreditVal.Text = $d['credit'] }
+                $today = if ($d.ContainsKey('todayCredit')) { $d['todayCredit'] } else { '—' }
+                $sess = if ($d.ContainsKey('todaySessions')) { $d['todaySessions'] } else { '0' }
+                $script:footerBase = "今日 $today 积分 · $sess 会话"
+                $script:FooterText.Text = $script:footerBase
 
-        $today = if ($d.ContainsKey('todayCredit')) { $d['todayCredit'] } else { '—' }
-        $sess = if ($d.ContainsKey('todaySessions')) { $d['todaySessions'] } else { '0' }
-        $script:FooterText.Text = "今日 $today 积分 · $sess 会话"
-
-        if ($changed -and -not $script:firstLoad) {
-            Show-BubbleFor 6
-            Start-Bounce
+                if ($changed -and -not $script:firstLoad) {
+                    Show-BubbleFor 6
+                    Start-Bounce
+                }
+                $script:firstLoad = $false
+            }
         }
-        $script:firstLoad = $false
+
+        # switching feedback
+        if (Test-Path -LiteralPath $script:StatusFile) {
+            try {
+                $status = (Get-Content -LiteralPath $script:StatusFile -Raw -Encoding UTF8).Trim()
+                if ($status) { $script:FooterText.Text = $status }
+            } catch { }
+        } elseif ($script:footerBase) {
+            $script:FooterText.Text = $script:footerBase
+        }
     } catch { }
 }
 
@@ -272,6 +373,45 @@ $script:dataTimer = New-Object System.Windows.Threading.DispatcherTimer
 $script:dataTimer.Interval = [TimeSpan]::FromMilliseconds($IntervalMs)
 $script:dataTimer.Add_Tick({ Update-Panel })
 $script:dataTimer.Start()
+
+# ---- skin switching -------------------------------------------------------
+function Start-SkinSwitch([string]$skinId) {
+    try {
+        if (-not (Test-Path -LiteralPath $script:SwitchScript)) { return }
+        $psi = New-Object System.Diagnostics.ProcessStartInfo
+        $psi.FileName = 'node'
+        $psi.Arguments = '"' + $script:SwitchScript + '" ' + $skinId
+        $psi.WorkingDirectory = $script:HookDir
+        $psi.UseShellExecute = $false
+        $psi.CreateNoWindow = $true
+        $psi.WindowStyle = [System.Diagnostics.ProcessWindowStyle]::Hidden
+        [void][System.Diagnostics.Process]::Start($psi)
+        Show-BubbleFor 8
+    } catch { }
+}
+
+$script:skinPoll = New-Object System.Windows.Threading.DispatcherTimer
+$script:skinPoll.Interval = [TimeSpan]::FromMilliseconds(900)
+$script:skinPoll.Add_Tick({
+    try {
+        $cur = Get-CurrentSkin
+        if ($cur.id -and $cur.id -ne $script:loadedSkin) {
+            $dir = Get-FramesDir $cur.id
+            if ($dir) {
+                $script:loadedSkin = $cur.id
+                Load-Frames $dir
+                Show-BubbleFor 4
+                Start-Bounce
+            }
+        }
+    } catch {
+        try {
+            $log = Join-Path $script:HookDir 'panel-err.log'
+            Add-Content -LiteralPath $log -Value ("[{0}] skinPoll: {1}" -f (Get-Date -Format 's'), $_.Exception.Message) -Encoding UTF8
+        } catch { }
+    }
+})
+$script:skinPoll.Start()
 
 # ---- drag / context menu --------------------------------------------------
 $script:Mascot.Add_MouseLeftButtonDown({
@@ -282,10 +422,40 @@ $script:Mascot.Add_MouseLeftButtonDown({
 })
 
 $menu = New-Object System.Windows.Controls.ContextMenu
+
 $miRefresh = New-Object System.Windows.Controls.MenuItem
 $miRefresh.Header = 'Refresh'
 $miRefresh.Add_Click({ Update-Panel })
 [void]$menu.Items.Add($miRefresh)
+
+$miSkin = New-Object System.Windows.Controls.MenuItem
+$miSkin.Header = '换形象'
+$script:skinItems = @{}
+foreach ($s in (Get-SkinCatalogue)) {
+    $item = New-Object System.Windows.Controls.MenuItem
+    $item.Header = $s.name
+    $item.Tag = $s.id
+    if ($s.id -eq $script:loadedSkin) {
+        $item.IsChecked = $true
+        $item.FontWeight = [System.Windows.FontWeights]::Bold
+    }
+    $item.Add_Click({
+        param($sender, $e)
+        foreach ($k in $script:skinItems.Keys) {
+            $script:skinItems[$k].IsChecked = $false
+            $script:skinItems[$k].FontWeight = [System.Windows.FontWeights]::Normal
+        }
+        $sender.IsChecked = $true
+        $sender.FontWeight = [System.Windows.FontWeights]::Bold
+        Start-SkinSwitch $sender.Tag
+    })
+    $script:skinItems[$s.id] = $item
+    [void]$miSkin.Items.Add($item)
+}
+if ($miSkin.Items.Count -gt 0) {
+    [void]$menu.Items.Add($miSkin)
+    [void]$menu.Items.Add((New-Object System.Windows.Controls.Separator))
+}
 
 $miHide = New-Object System.Windows.Controls.MenuItem
 $miHide.Header = 'Hide for 10 min'
@@ -301,6 +471,7 @@ $miExit = New-Object System.Windows.Controls.MenuItem
 $miExit.Header = 'Exit'
 $miExit.Add_Click({ $win.Close() })
 [void]$menu.Items.Add($miExit)
+
 $script:Mascot.ContextMenu = $menu
 
 # ---- lifecycle: follow the WorkBuddy main window --------------------------

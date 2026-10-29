@@ -43,6 +43,7 @@
 - **四个核心指标**：输入 token、输出 token、缓存命中率、本轮积分
 - **今日汇总**：跨会话、跨工作空间，0 点自动归零
 - **动图形象**：支持 APNG 逐帧播放（默认 36 帧循环）
+- **12 套形象可换**：右键菜单即点即换，本地缓存秒切；也能换成自己的图片
 - **生命周期跟随**：打开 WorkBuddy 自动出现，完全退出后自动消失
 - **原生宿主可选**：编译成 `WbPet.exe` 后内存约 50MB，无 PowerShell 进程
 
@@ -65,14 +66,17 @@ powershell -ExecutionPolicy Bypass -File install.ps1
 
 安装脚本会：
 
-1. 把 `src\` 下的脚本复制到 `%USERPROFILE%\.workbuddy\hooks`
-2. 抓取并拆分形象动画到 `assets\frames`（可加 `-SkipSprite` 跳过）
+1. 把 `src\` 的脚本和 `tools\` 的工具复制到 `%USERPROFILE%\.workbuddy\hooks`
+2. 下载并拆分默认形象（可用 `-Skin` 指定，`-SkipSprite` 跳过）
 3. 备份 `settings.json` 后注册两个 hook（`SessionStart` / `Stop`）
 4. 立即拉起面板
 
 可选参数：
 
 ```powershell
+# 指定初始形象（id 见下方「换形象」表）
+powershell -ExecutionPolicy Bypass -File install.ps1 -Skin quantum
+
 # 不下载形象（自己准备素材时用）
 powershell -ExecutionPolicy Bypass -File install.ps1 -SkipSprite
 
@@ -89,7 +93,10 @@ powershell -ExecutionPolicy Bypass -File install.ps1 -BuildNative
 | 鼠标移到角色上 | 显示用量气泡 |
 | 移开鼠标 | 0.45 秒后自动收起 |
 | 左键拖动 | 移动到任意位置 |
-| 右键 | `Refresh` 立即刷新 / `Hide for 10 min` 藏 10 分钟 / `Exit` 彻底退出 |
+| 右键 → `换形象` | 12 个预设形象任选，切换即时生效 |
+| 右键 → `Refresh` | 立即刷新数据 |
+| 右键 → `Hide for 10 min` | 藏起来 10 分钟 |
+| 右键 → `Exit` | 彻底退出 |
 | 每轮对话结束 | 气泡自动弹出 6 秒 + 角色弹跳 |
 
 ## 六、数据是怎么算的
@@ -110,27 +117,46 @@ powershell -ExecutionPolicy Bypass -File install.ps1 -BuildNative
 2. **缓存命中 99% 是好消息**。说明只有约 1% 的输入是全价，其余都是便宜的重发。
 3. **这些数字不是官方账单**。读的是本地落盘日志，对账请以积分记录为准；中途手动打断的长思考可能不落盘。
 
-## 七、换成你自己的形象
+## 七、换形象（换肤）
 
-默认形象是 WorkBuddy 官方的角色动画，仓库**不包含**该素材（版权原因），安装时用脚本从官方地址抓取：
+右键角色 → `换形象`，12 个预设形象任选，点完 1 秒内切换，不用重启。
+
+| id | 名称 | id | 名称 |
+|---|---|---|---|
+| `quantum` | 量子喵 | `academy` | 学院喵 |
+| `sweet` | 甜心喵 | `archive` | 档案喵 |
+| `pixel` | 像素喵 | `design` | 设计喵 |
+| `latte` | 拿铁喵 | `elite` | 和平精英喵 |
+| `floral` | 花艺喵 | `rich` | 暴富喵 |
+| `astro` | 星际喵 | `dragon` | 龙焰喵（默认） |
+
+命令行同样可以切（调用的是同一套逻辑）：
 
 ```bash
-# 默认源（WorkBuddy 官方形象）
-node tools/fetch-sprite.js
-
-# 换成任何 APNG / 静态 PNG
-node tools/fetch-sprite.js "https://example.com/my-pet.png"
-node tools/fetch-sprite.js "D:\pics\my-pet.png" --height 240
+node tools/switch-skin.js list          # 列出可用形象
+node tools/switch-skin.js quantum       # 按 id 切换
+node tools/switch-skin.js "D:\pic\a.png" --force   # 换自定义图片
 ```
 
-工具会输出 `f00_<w>x<h>.png ...`、`manifest.json`、`delays.txt` 到 `assets/frames`。
+**缓存机制**：每个形象第一次切换时下载并拆帧，存到 `assets/skins/<id>/`，之后切换是本地读取，秒切。想强制重新下载加 `--force`。
+
+### 换成自己的形象
+
+```bash
+# 任意 APNG 动图或静态 PNG（URL 或本地路径都行）
+node tools/switch-skin.js "https://example.com/my-pet.png"
+node tools/switch-skin.js "D:\pics\my-pet.png" --height 240
+
+# 只想拆帧、不切换
+node tools/fetch-sprite.js "D:\pics\my-pet.png" --out .\assets\frames
+```
 
 **支持的输入**：
 
 - APNG 动图（自动按 `fcTL`/`fdAT` 拆帧、按 `blend`/`dispose` 规则合成、统一裁剪对齐）
 - 普通静态 PNG（按单帧处理）
 
-**换形象的小提示**：素材最好是**透明背景**。如果是白底图，用图片工具抠图后再喂给脚本，否则方块底会留在桌面上。
+**小提示**：素材最好是**透明背景**。白底图请先抠图，否则方块底会留在桌面上；尺寸不必纠结，脚本会统一缩放到 220px 高。
 
 ## 八、编译原生宿主（可选，推荐）
 
@@ -180,7 +206,7 @@ build-pet.cmd
 
 ```
 wb-usage-pet/
-├── install.ps1              安装：复制脚本 + 注册 hooks + 抓素材
+├── install.ps1              安装：复制脚本 + 注册 hooks + 下载形象
 ├── uninstall.ps1            卸载：关进程 + 撤 hooks + 删文件
 ├── src/
 │   ├── turn-usage.js        Stop hook：解析会话日志，算用量，写 panel-data.txt
@@ -191,16 +217,24 @@ wb-usage-pet/
 │   ├── run-panel.vbs        无控制台窗口的启动器
 │   └── toast.ps1            Windows 通知通道（默认关闭时静默失败）
 ├── tools/
-│   └── fetch-sprite.js      APNG 拆帧工具（零依赖）
+│   ├── fetch-sprite.js      APNG 拆帧工具（零依赖，可当模块用）
+│   └── switch-skin.js       形象切换：下载 / 缓存 / 改 current.txt
 ├── assets/
-│   └── frames/              运行时生成的序列帧（不入库）
+│   ├── skins.json           形象清单（只存 id、名称、下载地址）
+│   └── skins/<id>/          运行时生成：该形象的序列帧与 current.txt（不入库）
 └── README.md
 ```
 
 ## 十一、常见问题
 
 **面板没出现**
-先看 `%USERPROFILE%\.workbuddy\hooks\panel.log`。最常见是形象帧没生成，执行 `node tools/fetch-sprite.js --out "%USERPROFILE%\.workbuddy\hooks\assets\frames"`。
+先看 `%USERPROFILE%\.workbuddy\hooks\panel.log` 与 `panel-err.log`。最常见是形象没下载好，执行 `node tools/switch-skin.js dragon` 重试。
+
+**换形象后一直是旧形象**
+面板靠轮询 `assets\skins\current.txt` 感知变化。如果手改过文件，右键 `Refresh`；仍无效则检查 `assets\skins\<id>\manifest.json` 是否存在。
+
+**换形象很慢 / 失败**
+首次切换要下载 3–9MB 并拆帧，取决于网络。失败会写进 `assets\skins\status.txt`，可加 `--force` 重试；公司网络限制 `download.codebuddy.cn` 时，用 `node tools/switch-skin.js "本地图片.png"` 换自定义素材。
 
 **数字一直不动**
 说明 Stop hook 没触发。检查 `settings.json` 里 `hooks.Stop` 是否指向 `turn-usage.js`；再看 `turn-usage.log` 有没有新记录。注意 CLI 侧手写的 hook 需要在 `/hooks` 面板审核，桌面版不需要。
