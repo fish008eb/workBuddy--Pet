@@ -87,8 +87,10 @@ Write-Step "清理 $HooksDir"
 $files = @(
     'turn-usage.js', 'start-panel.js', 'panel-wpf.ps1', 'WbPet.cs', 'WbPet.exe',
     'run-panel.vbs', 'run-panel.cmd', 'build-pet.cmd', 'toast.ps1',
+    'pet-ledger.js', 'pet-emotion.js', 'pet-event-writer.js',
     'panel-data.txt', 'panel-lines.txt', 'last-turn.txt',
-    'turn-usage.log', 'panel.log'
+    'pet-events.txt', 'pet-events.old.txt', 'pet-ledger.txt', 'pet-state.txt', 'pet-state.txt.tmp',
+    'turn-usage.log', 'panel.log', 'panel-err.log'
 )
 foreach ($f in $files) {
     $p = Join-Path $HooksDir $f
@@ -114,6 +116,12 @@ $catalog = Join-Path $HooksDir 'assets\skins.json'
 if (Test-Path $catalog) {
     Remove-Item -LiteralPath $catalog -Force -ErrorAction SilentlyContinue
     Write-Ok '已删除 skins.json'
+}
+
+$personas = Join-Path $HooksDir 'assets\personas.txt'
+if (Test-Path $personas) {
+    Remove-Item -LiteralPath $personas -Force -ErrorAction SilentlyContinue
+    Write-Ok '已删除 personas.txt'
 }
 
 $tools = Join-Path $HooksDir 'tools'

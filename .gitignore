@@ -11,6 +11,11 @@ assets/skins/
 panel-data.txt
 panel-lines.txt
 last-turn.txt
+pet-events.txt
+pet-events.old.txt
+pet-ledger.txt
+pet-state.txt
+pet-state.txt.tmp
 panel-err.log
 *.log
 WbPet.exe

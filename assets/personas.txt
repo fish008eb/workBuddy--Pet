@@ -1,0 +1,90 @@
+# personas.txt — 情绪文案表（想改词直接改这里，改完重启面板即可）
+#
+# 格式：
+#   persona|<id>|<显示名>|<强调色>
+#   line|<persona>|<触发 key>|<变体号>|<文案>|<emoji>
+#
+# 占位符（只允许这几个）：
+#   {in} 本轮输入 token    {out} 本轮输出 token   {cache} 缓存命中率
+#   {credit} 本轮积分      {calls} 本轮调用次数   {today} 今日积分
+#   {n} 轮次/数量          {h} 小时数             {name} 人格显示名
+#
+# 触发 key 一览：
+#   firstMeet 首次使用        turnHigh 单轮输入异常    callsHigh 调用次数爆炸
+#   creditHigh 单轮花钱多     cacheBest 缓存破纪录     cacheGood 缓存良好
+#   cacheBad 缓存崩了         creditMilestone 今日积分里程碑
+#   turnsMilestone 累计轮次   degradedToday 今日汇总失败  noTranscript 日志读不到
+#   longSession 连续工作      lateNight 深夜            nap 打盹
+#   napWake 打盹醒来          sitLong 久坐              newDay 跨天
+#   personaSwitch 切换人格反馈  chatty 话痨模式的普通轮次
+
+# ===== 人格定义 =====
+persona|cute|可爱治愈|#F9A8D4
+persona|snark|毒舌吐槽|#F87171
+persona|eng|克制工程师|#60A5FA
+
+# ===== 可爱治愈 =====
+line|cute|firstMeet|1|第一次见，多关照喵～|😺
+line|cute|turnHigh|1|{in} token…这一轮把整本书塞进去了吧？|😳
+line|cute|turnHigh|2|哇，{in} token，我有点喘不过气|😵
+line|cute|callsHigh|1|{calls} 次调用，你在指挥一支施工队吗|🛠️
+line|cute|creditHigh|1|这一下花了 {credit} 积分，有点肉疼|💸
+line|cute|cacheBest|1|缓存 {cache}%，新纪录！我记小本本上了|😻
+line|cute|cacheGood|1|缓存 {cache}%，今天很省|😊
+line|cute|cacheGood|2|{cache}% 命中，省下的都是赚的|🍀
+line|cute|cacheBad|1|缓存只剩 {cache}%，是不是换上下文了？|😰
+line|cute|creditMilestone|1|今日已经 {today} 积分啦，攒了一整天|🏅
+line|cute|turnsMilestone|1|第 {n} 轮了，配合越来越默契|🎉
+line|cute|degradedToday|1|今天的账算不清了，先看本轮的叭|😵
+line|cute|noTranscript|1|找不到会话日志，我瞎了|🫥
+line|cute|longSession|1|已经连着干 {h} 小时了，喝口水吧|🥤
+line|cute|lateNight|1|{h} 点了…你不困我先困了|😴
+line|cute|nap|1|（打盹）……|💤
+line|cute|napWake|1|醒了醒了！继续？|😸
+line|cute|sitLong|1|坐了一个半小时了，站起来两分钟|🧘
+line|cute|newDay|1|又是新的一天，今天从零开始|🌤️
+line|cute|personaSwitch|1|换好啦，现在是{name}|✨
+line|cute|chatty|1|这轮 ↑{in} ↓{out}，缓存 {cache}%|📊
+
+# ===== 毒舌吐槽 =====
+line|snark|firstMeet|1|哦，你又来烧 token 了|😐
+line|snark|turnHigh|1|{in} token，你是把整个仓库喂进去了？|🙄
+line|snark|turnHigh|2|{in} token，上下文不要钱是吧|💀
+line|snark|callsHigh|1|{calls} 次调用，工具链比你的思路还长|🔧
+line|snark|creditHigh|1|{credit} 积分没了，就这一下|💸
+line|snark|cacheBest|1|{cache}%…行吧，这次算你聪明|😏
+line|snark|cacheGood|1|{cache}%，没浪费，难得|👍
+line|snark|cacheBad|1|缓存掉到 {cache}%，你又改上下文了？|🤨
+line|snark|creditMilestone|1|{today} 积分了，钱包在哭|🪙
+line|snark|turnsMilestone|1|第 {n} 轮，你还没放弃啊|🫠
+line|snark|degradedToday|1|账算不出来了，日志被你怎么了？|😑
+line|snark|noTranscript|1|会话日志没了，我瞎了，你也差不多|🕳️
+line|snark|longSession|1|{h} 小时了，屁股还好吗|🪑
+line|snark|lateNight|1|{h} 点了，明天起不来别怪我|🌚
+line|snark|nap|1|zzz…别吵|😴
+line|snark|napWake|1|醒了，有事快说|😑
+line|snark|sitLong|1|坐一个半小时了，站起来走走，别猝死|🚶
+line|snark|newDay|1|新的一天，继续烧|🌅
+line|snark|personaSwitch|1|行，现在我是{name}，别指望我温柔|😼
+line|snark|chatty|1|↑{in} ↓{out}，缓存 {cache}%，就这|📉
+
+# ===== 克制工程师 =====
+line|eng|firstMeet|1|首次启动，基线建立中。|🧭
+line|eng|turnHigh|1|本轮输入 {in}，显著高于基线。|📈
+line|eng|callsHigh|1|本轮 {calls} 次调用，接近单轮上限。|⚙️
+line|eng|creditHigh|1|本轮 {credit} 积分，高于近期均值。|💳
+line|eng|cacheBest|1|缓存 {cache}%，刷新历史最好。|🏆
+line|eng|cacheGood|1|缓存 {cache}%，状态良好。|✅
+line|eng|cacheBad|1|缓存 {cache}%，低于阈值，建议检查上下文。|⚠️
+line|eng|creditMilestone|1|今日累计 {today} 积分。|🧾
+line|eng|turnsMilestone|1|累计 {n} 轮。|📊
+line|eng|degradedToday|1|今日汇总失败，仅本轮数据可用。|🧯
+line|eng|noTranscript|1|会话日志缺失，无法统计。|🔍
+line|eng|longSession|1|连续工作 {h} 小时。|⏱️
+line|eng|lateNight|1|{h}:00 仍在工作。|🌙
+line|eng|nap|1|空闲中。|💤
+line|eng|napWake|1|恢复活动。|▶️
+line|eng|sitLong|1|持续工作 90 分钟，建议短暂离开。|🚶
+line|eng|newDay|1|新的一天，计数归零。|📅
+line|eng|personaSwitch|1|人格切换为 {name}。|🔧
+line|eng|chatty|1|↑{in} ↓{out} · 缓存 {cache}%|📐

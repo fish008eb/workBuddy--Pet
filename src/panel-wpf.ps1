@@ -53,7 +53,7 @@ $xaml = @'
         WindowStyle="None" AllowsTransparency="True" Background="Transparent"
         Topmost="True" ShowInTaskbar="False" ResizeMode="NoResize"
         SnapsToDevicePixels="True" UseLayoutRounding="True"
-        Width="340" Height="400" FontFamily="Microsoft YaHei UI">
+        Width="340" Height="448" FontFamily="Microsoft YaHei UI">
   <Grid>
     <StackPanel VerticalAlignment="Bottom" HorizontalAlignment="Center" Margin="0,0,0,6">
 
@@ -311,7 +311,7 @@ function Start-Bounce {
 }
 
 # ---- data -----------------------------------------------------------------
-$script:lastWrite = [DateTime]::MinValue
+$script:lastSig = ''
 $script:firstLoad = $true
 $script:footerBase = ''
 
@@ -332,12 +332,13 @@ function Read-PanelData {
 function Update-Panel {
     try {
         if (Test-Path -LiteralPath $script:DataFile) {
-            $item = Get-Item -LiteralPath $script:DataFile
-            $changed = ($item.LastWriteTime -ne $script:lastWrite)
-            $script:lastWrite = $item.LastWriteTime
-
             $d = Read-PanelData
             if ($d.Count -gt 0) {
+                # 用内容签名判重：同一轮重复写文件不会再弹一次（mtime 判定会重复弹）
+                $sig = [string]::Join('|', @($d['time'], $d['turnIn'], $d['credit'], $d['cacheRate']))
+                $changed = (-not $script:firstLoad) -and ($sig -ne $script:lastSig)
+                $script:lastSig = $sig
+
                 if ($d.ContainsKey('time')) { $script:TimeText.Text = $d['time'] }
                 if ($d.ContainsKey('turnIn')) { $script:TurnInVal.Text = $d['turnIn'] }
                 if ($d.ContainsKey('turnOut')) { $script:TurnOutVal.Text = $d['turnOut'] }
@@ -349,7 +350,7 @@ function Update-Panel {
                 $script:footerBase = "今日 $today 积分 · $sess 会话"
                 $script:FooterText.Text = $script:footerBase
 
-                if ($changed -and -not $script:firstLoad) {
+                if ($changed) {
                     Show-BubbleFor 6
                     Start-Bounce
                 }

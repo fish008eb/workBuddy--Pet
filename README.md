@@ -45,6 +45,7 @@
 - **四个核心指标**：输入 token、输出 token、缓存命中率、本轮积分
 - **今日汇总**：跨会话、跨工作空间，0 点自动归零
 - **动图形象**：支持 APNG 逐帧播放（默认 36 帧循环）
+- **情绪表达**：7 种情绪、3 套人格、3 档唠叨，按用量与时间自动开口
 - **12 套形象可换**：右键菜单即点即换，本地缓存秒切；也能换成自己的图片
 - **生命周期跟随**：打开 WorkBuddy 自动出现，完全退出后自动消失
 - **原生宿主可选**：编译成 `WbPet.exe` 后内存约 50MB，无 PowerShell 进程
@@ -94,12 +95,16 @@ powershell -ExecutionPolicy Bypass -File install.ps1 -BuildNative
 |---|---|
 | 鼠标移到角色上 | 显示用量气泡 |
 | 移开鼠标 | 0.45 秒后自动收起 |
-| 左键拖动 | 移动到任意位置 |
+| 左键拖动 | 移动到任意位置（会记住） |
 | 右键 → `换形象` | 12 个预设形象任选，切换即时生效 |
+| 右键 → `人格` | 可爱治愈 / 毒舌吐槽 / 克制工程师 |
+| 右键 → `唠叨程度` | 克制 / 话痨 / 极简 |
+| 右键 → `静音 1 小时` | 期间不弹任何情绪气泡 |
 | 右键 → `Refresh` | 立即刷新数据 |
 | 右键 → `Hide for 10 min` | 藏起来 10 分钟 |
 | 右键 → `Exit` | 彻底退出 |
-| 每轮对话结束 | 气泡自动弹出 6 秒 + 角色弹跳 |
+| 每轮对话结束 | 气泡自动弹出 6 秒 + 角色动一下 + 一句情绪反馈（视触发规则） |
+| 深夜 / 久坐 / 长时间无操作 | 自己开口提醒，或进入打盹状态 |
 
 ## 六、数据是怎么算的
 
@@ -160,7 +165,49 @@ node tools/fetch-sprite.js "D:\pics\my-pet.png" --out .\assets\frames
 
 **小提示**：素材最好是**透明背景**。白底图请先抠图，否则方块底会留在桌面上；尺寸不必纠结，脚本会统一缩放到 220px 高。
 
-## 八、编译原生宿主（可选，推荐）
+## 八、情绪系统（仅 WbPet.exe 生效）
+
+宠物不只是报数字，它会根据用量、时间和节奏自己表达情绪。详细设计见 [docs/emotion-design.md](docs/emotion-design.md)。
+
+### 7 种情绪
+
+| 情绪 | 什么时候 | 动作 |
+|---|---|---|
+| 开心 | 缓存好、打盹醒来、跨天 | 弹跳 |
+| 得意 | 缓存破纪录、积分/轮次里程碑 | 三连跳 |
+| 担忧 | 烧太多、缓存崩、数据算不出来 | 横向抖动 |
+| 心疼 | 连续工作 2h/4h、久坐 90 分钟 | 缓慢呼吸 |
+| 困倦 | 深夜、15 分钟无活动 | 降帧 + 半透明 |
+| 惊讶 | 单轮 token 或调用数异常 | 挤压回弹 |
+| 平静 | 默认，不说话 | 无 |
+
+### 3 套人格 × 3 档唠叨
+
+右键角色即可切换，写入 `pet-state.txt`，重启后保留：
+
+| 人格 | 风格 |
+|---|---|
+| 可爱治愈 | `缓存 99.8%，新纪录！我记小本本上了 😻` |
+| 毒舌吐槽 | `269万 token，你是把整个仓库喂进去了？🙄` |
+| 克制工程师 | `缓存 99.8%，刷新历史最好。🏆` |
+
+| 档位 | 说什么 |
+|---|---|
+| **克制（默认）** | 只在异常、里程碑、深夜、久坐时开口 |
+| 话痨 | 每轮都说一句，带本轮数据 |
+| 极简 | 只在数据降级和里程碑开口 |
+
+### 自己改词
+
+所有文案在 `assets/personas.txt`，格式 `line|人格|触发key|变体|文案|emoji`，改完重启面板即可。占位符支持 `{in} {out} {cache} {credit} {calls} {today} {n} {h} {name}`。
+
+### 防刷屏
+
+每轮最多 1 条；非紧急事件间隔 ≥45 秒；10 分钟内 ≤3 条；同一情绪 3 分钟内不重复；鼠标悬停时挂起、移开补播。
+
+> **注意**：情绪功能只在编译后的 `WbPet.exe` 里生效（脚本宿主版保留用量显示与换肤，不读情绪文件）。
+
+## 九、编译原生宿主（可选，推荐）
 
 默认宿主是 PowerShell + WPF，功能完整但内存约 200MB。编译成原生 exe 后：
 
@@ -179,7 +226,7 @@ build-pet.cmd
 
 `start-panel.js` 的启动优先级是 **WbPet.exe → run-panel.vbs（PowerShell 兜底）**，编译完不用改任何配置。
 
-## 九、工作原理
+## 十、工作原理
 
 ```
 ┌─────────────────┐   SessionStart   ┌──────────────────┐  WMI 创建  ┌─────────────┐
@@ -204,7 +251,7 @@ build-pet.cmd
 3. **PowerShell 5.1 按 ANSI 读取无 BOM 的 .ps1**
    脚本里写中文会直接解析失败。所以 `panel-wpf.ps1`、`install.ps1`、`uninstall.ps1` 都**必须存成 UTF-8 with BOM**，改文件时别把 BOM 弄丢。
 
-## 十、目录结构
+## 十一、目录结构
 
 ```
 wb-usage-pet/
@@ -212,7 +259,10 @@ wb-usage-pet/
 ├── install.ps1              安装：复制脚本 + 注册 hooks + 下载形象
 ├── uninstall.ps1            卸载：关进程 + 撤 hooks + 删文件
 ├── src/
-│   ├── turn-usage.js        Stop hook：解析会话日志，算用量，写 panel-data.txt
+│   ├── turn-usage.js        Stop hook：解析会话日志，算用量，写面板数据与情绪事件
+│   ├── pet-emotion.js       情绪判定与文案渲染
+│   ├── pet-ledger.js        跨轮统计记忆（EMA / 里程碑 / 阈值）
+│   ├── pet-event-writer.js  情绪事件追加日志（seq + 轮转）
 │   ├── start-panel.js       SessionStart hook：WMI 拉起面板（单实例）
 │   ├── panel-wpf.ps1        WPF 面板（PowerShell 宿主，兜底方案）
 │   ├── WbPet.cs             WPF 面板（C# 原生宿主，可选）
@@ -224,7 +274,10 @@ wb-usage-pet/
 │   └── switch-skin.js       形象切换：下载 / 缓存 / 改 current.txt
 ├── assets/
 │   ├── skins.json           形象清单（只存 id、名称、下载地址）
+│   ├── personas.txt         3 套人格文案（可直接改词）
 │   └── skins/<id>/          运行时生成：该形象的序列帧与 current.txt（不入库）
+├── docs/
+│   └── emotion-design.md    情绪系统设计文档
 └── README.md
 ```
 
@@ -236,7 +289,7 @@ npm run skin -- quantum  # 切换形象
 npm run sprite -- "D:\pic\a.png"   # 拆帧
 ```
 
-## 十一、常见问题
+## 十二、常见问题
 
 **面板没出现**
 先看 `%USERPROFILE%\.workbuddy\hooks\panel.log` 与 `panel-err.log`。最常见是形象没下载好，执行 `node tools/switch-skin.js dragon` 重试。
@@ -262,7 +315,7 @@ npm run sprite -- "D:\pic\a.png"   # 拆帧
 **杀毒软件报警**
 面板要写 `settings.json`、启动后台进程，行为特征和脚本病毒相似。源码全在 `src/`，可自行审计或改成本地签名。
 
-## 十二、卸载
+## 十三、卸载
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File uninstall.ps1
@@ -270,14 +323,15 @@ powershell -ExecutionPolicy Bypass -File uninstall.ps1
 
 会关闭面板、移除 hooks、删除已安装文件，并把配置备份成 `settings.json.bak-<时间戳>`。想回滚就把备份改名成 `settings.json`。
 
-## 十三、已知限制
+## 十四、已知限制
 
 - 仅支持 **Windows**（依赖 WPF、WMI、Job Object 行为）
 - 读的是本地日志，**不是官方账单**；换机器不同步
 - 长上下文压缩（compact）后，历史轮次的 token 记录仍留在 jsonl 里，所以「会话」数字只会增不会减
 - 形象素材版权不属于本项目，仓库不附带
+- 情绪系统只在 C# 版（`WbPet.exe`）生效，脚本宿主版仅显示用量
 
-## 十四、许可
+## 十五、许可
 
 代码：MIT，见 [LICENSE](LICENSE)。
 

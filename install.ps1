@@ -61,7 +61,25 @@ Write-Ok '已复制 tools\fetch-sprite.js / switch-skin.js'
 $assetsTarget = Join-Path $HooksDir 'assets'
 New-Item -ItemType Directory -Force -Path $assetsTarget | Out-Null
 Copy-Item -Path (Join-Path $root 'assets\skins.json') -Destination $assetsTarget -Force
-Write-Ok '已复制 assets\skins.json（形象清单）'
+Copy-Item -Path (Join-Path $root 'assets\personas.txt') -Destination $assetsTarget -Force
+Write-Ok '已复制 assets\skins.json（形象清单）与 assets\personas.txt（人格文案）'
+
+# 面板第一次启动前没有 pet-state.txt，先放一份默认偏好，避免面板与 hook 各写一份
+$stateFile = Join-Path $HooksDir 'pet-state.txt'
+if (-not (Test-Path $stateFile)) {
+    $defaults = @(
+        'version=1',
+        'persona=cute',
+        'verbosity=normal',
+        'winX=0',
+        'winY=0',
+        'eventOffset=0',
+        'lastEventSeq=0',
+        'quietUntil=0'
+    )
+    [System.IO.File]::WriteAllLines($stateFile, $defaults, (New-Object System.Text.UTF8Encoding($false)))
+    Write-Ok '已写入默认 pet-state.txt（人格=可爱治愈，唠叨=克制）'
+}
 
 # ---------- 2. 形象资源 ----------
 $currentFile = Join-Path $HooksDir 'assets\skins\current.txt'

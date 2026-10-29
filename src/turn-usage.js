@@ -22,8 +22,33 @@ const { spawn } = require('child_process');
 const HOOKS_DIR = __dirname;
 const LOG_FILE = path.join(HOOKS_DIR, 'turn-usage.log');
 const MSG_FILE = path.join(HOOKS_DIR, 'last-turn.txt');
+const EVENT_FILE = path.join(HOOKS_DIR, 'pet-events.txt');
+const LEDGER_FILE = path.join(HOOKS_DIR, 'pet-ledger.txt');
+const STATE_FILE = path.join(HOOKS_DIR, 'pet-state.txt');
+
+/**
+ * personas.txt 的位置有两种情况：
+ *   - 安装后：~/.workbuddy/hooks/assets/personas.txt（与脚本同级）
+ *   - 源码仓库：<repo>/assets/personas.txt（脚本在 src/ 下）
+ * 依次探测，取第一个存在的。
+ */
+function firstExisting(list) {
+  for (const p of list) {
+    try { if (fs.existsSync(p)) { return p; } } catch (_) { /* ignore */ }
+  }
+  return list[0];
+}
+
+const PERSONAS_FILE = firstExisting([
+  path.join(HOOKS_DIR, 'assets', 'personas.txt'),
+  path.join(HOOKS_DIR, '..', 'assets', 'personas.txt'),
+]);
 const MAX_LOG_BYTES = 256 * 1024;   // 日志超过 256KB 轮转一次
 const MAX_TRANSCRIPT_BYTES = 40 * 1024 * 1024; // 超过 40MB 只读尾部
+
+const ledgerLib = require('./pet-ledger');
+const emotionLib = require('./pet-emotion');
+const eventLib = require('./pet-event-writer');
 
 function log(msg) {
   try {
@@ -388,6 +413,91 @@ function notify(msg) {
   }
 }
 
+/** 面板写在 pet-state.txt 里的偏好（人格 / 唠叨档），读不到用默认值 */
+function readUiState() {
+  const ui = { persona: 'cute', verbosity: 'normal' };
+  try {
+    const text = fs.readFileSync(STATE_FILE, 'utf8');
+    for (const line of text.split('\n')) {
+      const i = line.indexOf('=');
+      if (i <= 0) { continue; }
+      const k = line.slice(0, i).trim();
+      const v = line.slice(i + 1).trim();
+      if (k === 'persona' && v) { ui.persona = v; }
+      if (k === 'verbosity' && v) { ui.verbosity = v; }
+    }
+  } catch (_) { /* 面板还没写过，用默认 */ }
+  return ui;
+}
+
+/**
+ * 判定本轮情绪 → 追加事件 → 落盘 ledger。
+ * @returns {{event: object|null, seq: number}}
+ */
+function emitEmotion(ctx) {
+  const ui = readUiState();
+  const store = emotionLib.loadPersonas(PERSONAS_FILE);
+  const read = ledgerLib.readLedger(LEDGER_FILE);
+  const ledger = read.ledger;
+
+  const ev = emotionLib.evaluateTurn({
+    turn: ctx.turn,
+    sess: ctx.sess,
+    today: ctx.today,
+    ledger: ledger,
+    personaId: ui.persona,
+    verbosity: ui.verbosity,
+    store: store,
+    now: Date.now(),
+    turnId: ctx.turnId || '',
+  });
+
+  let seq = ledger.lastEventSeq;
+  if (ev) {
+    const written = eventLib.appendEvent(EVENT_FILE, {
+      ts: Date.now(),
+      turnId: ctx.turnId || '',
+      emotion: ev.emotion,
+      pri: ev.pri,
+      motion: ev.motion,
+      accent: ev.accent,
+      title: ev.title,
+      text: ev.text,
+      durSec: ev.durSec,
+    }, ledger.lastEventSeq);
+    if (written) { seq = written; }
+  }
+  ledger.lastEventSeq = seq;
+  ledgerLib.writeLedger(LEDGER_FILE, ledger);
+  return { event: ev, seq: seq };
+}
+
+/** 数据降级时直接抛一条紧急事件（不经过本轮统计） */
+function emitAlert(key, emotion, pri) {
+  const ui = readUiState();
+  const store = emotionLib.loadPersonas(PERSONAS_FILE);
+  const read = ledgerLib.readLedger(LEDGER_FILE);
+  const ledger = read.ledger;
+
+  const ev = emotionLib.makeAlert(store, ui.persona, key, emotion || 'worried', pri || 3);
+  const written = eventLib.appendEvent(EVENT_FILE, {
+    ts: Date.now(),
+    turnId: 'alert-' + Date.now(),
+    emotion: ev.emotion,
+    pri: ev.pri,
+    motion: ev.motion,
+    accent: ev.accent,
+    title: ev.title,
+    text: ev.text,
+    durSec: ev.durSec,
+  }, ledger.lastEventSeq);
+
+  ledger.lastEventSeq = written || ledger.lastEventSeq;
+  ledger.lastActivityTs = Date.now();
+  ledgerLib.writeLedger(LEDGER_FILE, ledger);
+  return ev;
+}
+
 function main() {
   let input = '';
   process.stdin.setEncoding('utf8');
@@ -397,7 +507,11 @@ function main() {
       const payload = JSON.parse(input || '{}');
       const tp = payload.transcript_path;
       if (!tp) { log('payload 无 transcript_path'); return; }
-      if (!fs.existsSync(tp)) { log('transcript 不存在: ' + tp); return; }
+      if (!fs.existsSync(tp)) {
+        log('transcript 不存在: ' + tp);
+        emitAlert('noTranscript', 'worried', 3);
+        return;
+      }
 
       const records = readTranscript(tp);
       const res = computeTurn(records);
@@ -425,6 +539,18 @@ function main() {
       emitStdout(msg);
       writePanel(buildPanelLines(sum, sess, today));
       writePanelData(sum, sess, today);
+
+      // 情绪事件（阶段一规则 1-11 + 跨天），写成功才更新 ledger 的 seq
+      try {
+        const turnId = payload.generation_id || payload.session_id || '';
+        const emo = emitEmotion({ turn: sum, sess: sess, today: today, turnId: turnId });
+        if (emo.event) {
+          log('emotion=' + emo.event.emotion + ' key=' + emo.event.key + ' seq=' + emo.seq);
+        }
+      } catch (e) {
+        log('情绪判定失败: ' + (e && e.message ? e.message : e));
+      }
+
       notify(msg);
     } catch (e) {
       log('异常: ' + (e && e.stack ? e.stack : e));
@@ -432,4 +558,57 @@ function main() {
   });
 }
 
-main();
+/**
+ * --demo <emotion> [key]：伪造一条情绪事件，用于验收，不依赖真实会话。
+ *   node src/turn-usage.js --demo happy cacheGood
+ */
+function runDemo(args) {
+  const ui = readUiState();
+  const store = emotionLib.loadPersonas(PERSONAS_FILE);
+  const emotion = (args[0] || 'happy').toLowerCase();
+  const key = args[1] || 'chatty';
+  const meta = emotionLib.EMOTIONS[emotion] || emotionLib.EMOTIONS.happy;
+
+  const vars = {
+    in: '146.4\u4e07', out: '1.2\u4e07', cache: '99.5', credit: '1.21',
+    calls: 7, today: '80.6', n: 128, h: 2,
+  };
+  const rendered = emotionLib.render(store, ui.persona, key, vars, 0);
+  const title = (rendered.emoji ? rendered.emoji + ' ' : '') + rendered.name;
+
+  const read = ledgerLib.readLedger(LEDGER_FILE);
+  const seq = eventLib.appendEvent(EVENT_FILE, {
+    ts: Date.now(),
+    turnId: 'demo-' + Date.now(),
+    emotion: emotion,
+    pri: 2,
+    motion: meta.motion,
+    accent: meta.accent,
+    title: title,
+    text: rendered.text,
+    durSec: 6,
+  }, read.ledger.lastEventSeq);
+
+  read.ledger.lastEventSeq = seq || read.ledger.lastEventSeq;
+  ledgerLib.writeLedger(LEDGER_FILE, read.ledger);
+
+  console.log('demo: emotion=' + emotion + ' key=' + key + ' seq=' + seq + ' persona=' + ui.persona);
+  console.log('  ' + title + '  |  ' + rendered.text);
+  if (!seq) { console.log('  \u5199\u5165\u5931\u8d25\uff0c\u8bf7\u68c0\u67e5 ' + EVENT_FILE); }
+}
+
+module.exports = {
+  computeTurn,
+  computeSession,
+  computeToday,
+  emitEmotion,
+  emitAlert,
+  readUiState,
+};
+
+const argv = process.argv.slice(2);
+if (argv[0] === '--demo') {
+  runDemo(argv.slice(1));
+} else {
+  main();
+}
