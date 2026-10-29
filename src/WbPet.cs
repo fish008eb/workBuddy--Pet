@@ -91,7 +91,6 @@ namespace WbPet
         private readonly List<DateTime> _recentBubbles = new List<DateTime>();
 
         private string _loadedSkin = string.Empty;
-        private string _footerBase = string.Empty;
         private string _persona = "cute";
         private string _verbosity = "normal";
         private long _eventOffset;
@@ -119,6 +118,7 @@ namespace WbPet
         private Grid _bubble;
         private Border _bubbleBody;
         private ShapePath _tail;
+        private Border _dot;
         private TextBlock _title;
         private TextBlock _timeText;
         private TextBlock _turnIn;
@@ -126,6 +126,8 @@ namespace WbPet
         private TextBlock _cache;
         private TextBlock _credit;
         private TextBlock _emotionText;
+        private TextBlock _todayValue;
+        private TextBlock _todaySessions;
         private TextBlock _footer;
         private ScaleTransform _scale;
         private TranslateTransform _shift;
@@ -217,36 +219,52 @@ namespace WbPet
             _bubbleBody = new Border();
             _bubbleBody.Background = BgBrush;
             _bubbleBody.BorderBrush = BorderBrushDark;
-            _bubbleBody.BorderThickness = new Thickness(1.2);
+            _bubbleBody.BorderThickness = new Thickness(0.5);
             _bubbleBody.CornerRadius = new CornerRadius(16);
-            _bubbleBody.Padding = new Thickness(16, 12, 16, 11);
-            _bubbleBody.Width = 276;
+            _bubbleBody.Padding = new Thickness(15, 11, 15, 12);
+            _bubbleBody.Width = 288;
 
             DropShadowEffect shadow = new DropShadowEffect();
-            shadow.BlurRadius = 18;
+            shadow.BlurRadius = 14;
             shadow.ShadowDepth = 4;
             shadow.Direction = 270;
-            shadow.Opacity = 0.45;
+            shadow.Opacity = 0.32;
             shadow.Color = Colors.Black;
             _bubbleBody.Effect = shadow;
 
             StackPanel inner = new StackPanel();
 
+            // header: emotion dot + persona name (left), time (right)
             Grid header = new Grid();
-            header.Margin = new Thickness(0, 0, 0, 8);
+
+            StackPanel who = new StackPanel();
+            who.Orientation = Orientation.Horizontal;
+            who.HorizontalAlignment = HorizontalAlignment.Left;
+            who.VerticalAlignment = VerticalAlignment.Center;
+
+            _dot = new Border();
+            _dot.Width = 5;
+            _dot.Height = 5;
+            _dot.CornerRadius = new CornerRadius(2.5);
+            _dot.Margin = new Thickness(0, 0, 6, 0);
+            _dot.VerticalAlignment = VerticalAlignment.Center;
+            _dot.Background = new SolidColorBrush(Color.FromRgb(0x6B, 0x7B, 0x9E));
+            who.Children.Add(_dot);
 
             _title = new TextBlock();
             _title.Text = "WorkBuddy";
-            _title.FontSize = 11;
+            _title.FontSize = 10.5;
             _title.Foreground = TitleBrush;
-            _title.HorizontalAlignment = HorizontalAlignment.Left;
+            _title.VerticalAlignment = VerticalAlignment.Center;
             _title.TextTrimming = TextTrimming.CharacterEllipsis;
-            _title.MaxWidth = 180;
+            _title.MaxWidth = 170;
             TextOptions.SetTextFormattingMode(_title, TextFormattingMode.Display);
-            header.Children.Add(_title);
+            who.Children.Add(_title);
+
+            header.Children.Add(who);
 
             _timeText = new TextBlock();
-            _timeText.FontSize = 11;
+            _timeText.FontSize = 10.5;
             _timeText.Foreground = TimeBrush;
             _timeText.HorizontalAlignment = HorizontalAlignment.Right;
             TextOptions.SetTextFormattingMode(_timeText, TextFormattingMode.Display);
@@ -254,40 +272,92 @@ namespace WbPet
 
             inner.Children.Add(header);
 
+            // emotion line: the main visual of the bubble
             _emotionText = new TextBlock();
-            _emotionText.FontSize = 12.5;
+            _emotionText.FontSize = 15;
             _emotionText.Foreground = EmotionBrush;
             _emotionText.TextWrapping = TextWrapping.Wrap;
-            _emotionText.Margin = new Thickness(0, 0, 0, 9);
-            _emotionText.MaxHeight = 48;
+            _emotionText.Margin = new Thickness(0, 8, 0, 12);
+            _emotionText.MaxHeight = 70;
+            _emotionText.TextTrimming = TextTrimming.CharacterEllipsis;
             _emotionText.Visibility = Visibility.Collapsed;
             TextOptions.SetTextFormattingMode(_emotionText, TextFormattingMode.Display);
             inner.Children.Add(_emotionText);
 
-            Grid tiles = new Grid();
-            tiles.ColumnDefinitions.Add(new ColumnDefinition());
-            tiles.ColumnDefinitions.Add(new ColumnDefinition());
-            tiles.RowDefinitions.Add(new RowDefinition());
-            tiles.RowDefinitions.Add(new RowDefinition());
+            inner.Children.Add(MakeDivider());
 
-            _turnIn = AddTile(tiles, 0, 0, "M8,2 L14,9 L10.5,9 L10.5,14 L5.5,14 L5.5,9 L2,9 Z", "#5EEAD4", "输入", true);
-            _turnOut = AddTile(tiles, 0, 1, "M8,14 L2,7 L5.5,7 L5.5,2 L10.5,2 L10.5,7 L14,7 Z", "#A78BFA", "输出", true);
-            _cache = AddTile(tiles, 1, 0, "M9.5,1 L3,9 L7,9 L6.5,15 L13,7 L9,7 Z", "#FBBF24", "缓存命中", false);
-            _credit = AddTile(tiles, 1, 1, "M8,2 L13,8 L8,14 L3,8 Z", "#34D399", "积分", false);
+            // today's credits, the largest number on the card
+            Grid today = new Grid();
+            today.Margin = new Thickness(0, 11, 0, 12);
 
-            inner.Children.Add(tiles);
+            StackPanel todayLeft = new StackPanel();
+            todayLeft.Orientation = Orientation.Horizontal;
+            todayLeft.HorizontalAlignment = HorizontalAlignment.Left;
+            todayLeft.VerticalAlignment = VerticalAlignment.Bottom;
 
-            Border divider = new Border();
-            divider.Height = 1;
-            divider.Background = MakeBrush(0x26, 0x2B, 0x36);
-            divider.Margin = new Thickness(0, 10, 0, 7);
-            inner.Children.Add(divider);
+            TextBlock todayCap = new TextBlock();
+            todayCap.Text = "\u4ECA\u65E5";
+            todayCap.FontSize = 10;
+            todayCap.Foreground = CaptionBrush;
+            todayCap.VerticalAlignment = VerticalAlignment.Bottom;
+            todayCap.Margin = new Thickness(0, 0, 6, 4);
+            TextOptions.SetTextFormattingMode(todayCap, TextFormattingMode.Display);
+            todayLeft.Children.Add(todayCap);
 
+            _todayValue = new TextBlock();
+            _todayValue.Text = "-";
+            _todayValue.FontSize = 23;
+            _todayValue.FontWeight = FontWeights.Medium;
+            _todayValue.Foreground = ValueBrush;
+            _todayValue.VerticalAlignment = VerticalAlignment.Bottom;
+            _todayValue.Margin = new Thickness(0, 0, 5, 0);
+            TextOptions.SetTextFormattingMode(_todayValue, TextFormattingMode.Display);
+            todayLeft.Children.Add(_todayValue);
+
+            TextBlock todayUnit = new TextBlock();
+            todayUnit.Text = "\u79EF\u5206";
+            todayUnit.FontSize = 10;
+            todayUnit.Foreground = CaptionBrush;
+            todayUnit.VerticalAlignment = VerticalAlignment.Bottom;
+            todayUnit.Margin = new Thickness(0, 0, 0, 4);
+            TextOptions.SetTextFormattingMode(todayUnit, TextFormattingMode.Display);
+            todayLeft.Children.Add(todayUnit);
+
+            today.Children.Add(todayLeft);
+
+            _todaySessions = new TextBlock();
+            _todaySessions.FontSize = 10.5;
+            _todaySessions.Foreground = TimeBrush;
+            _todaySessions.HorizontalAlignment = HorizontalAlignment.Right;
+            _todaySessions.VerticalAlignment = VerticalAlignment.Bottom;
+            _todaySessions.Margin = new Thickness(0, 0, 0, 4);
+            TextOptions.SetTextFormattingMode(_todaySessions, TextFormattingMode.Display);
+            today.Children.Add(_todaySessions);
+
+            inner.Children.Add(today);
+
+            inner.Children.Add(MakeDivider());
+
+            // this turn's metrics: one compact row, icon + value only
+            Grid metrics = new Grid();
+            metrics.Margin = new Thickness(0, 10, 0, 0);
+            for (int i = 0; i < 4; i++) { metrics.ColumnDefinitions.Add(new ColumnDefinition()); }
+
+            _turnIn = AddMetric(metrics, 0, "M8,2 L14,9 L10.5,9 L10.5,14 L5.5,14 L5.5,9 L2,9 Z", "#5EEAD4", HorizontalAlignment.Left, "\u8F93\u5165 token");
+            _turnOut = AddMetric(metrics, 1, "M8,14 L2,7 L5.5,7 L5.5,2 L10.5,2 L10.5,7 L14,7 Z", "#A78BFA", HorizontalAlignment.Center, "\u8F93\u51FA token");
+            _cache = AddMetric(metrics, 2, "M9.5,1 L3,9 L7,9 L6.5,15 L13,7 L9,7 Z", "#FBBF24", HorizontalAlignment.Center, "\u7F13\u5B58\u547D\u4E2D\u7387");
+            _credit = AddMetric(metrics, 3, "M8,2 L13,8 L8,14 L3,8 Z", "#34D399", HorizontalAlignment.Right, "\u672C\u8F6E\u79EF\u5206");
+
+            inner.Children.Add(metrics);
+
+            // footer only carries transient messages such as skin switching progress
             _footer = new TextBlock();
-            _footer.FontSize = 10.5;
+            _footer.FontSize = 10;
             _footer.Foreground = CaptionBrush;
             _footer.HorizontalAlignment = HorizontalAlignment.Center;
             _footer.TextWrapping = TextWrapping.Wrap;
+            _footer.Margin = new Thickness(0, 7, 0, 0);
+            _footer.Visibility = Visibility.Collapsed;
             TextOptions.SetTextFormattingMode(_footer, TextFormattingMode.Display);
             inner.Children.Add(_footer);
 
@@ -325,44 +395,43 @@ namespace WbPet
             LocationChanged += OnWindowMoved;
         }
 
-        private TextBlock AddTile(Grid grid, int row, int col, string iconPath, string color, string caption, bool withBottomMargin)
+        private static Border MakeDivider()
         {
-            StackPanel tile = new StackPanel();
-            tile.Orientation = Orientation.Horizontal;
-            if (withBottomMargin) { tile.Margin = new Thickness(0, 0, 0, 9); }
-            Grid.SetRow(tile, row);
-            Grid.SetColumn(tile, col);
+            Border divider = new Border();
+            divider.Height = 1;
+            divider.Background = MakeBrush(0x26, 0x2B, 0x36);
+            return divider;
+        }
+
+        /** 本轮指标：图标 + 数值横排一枚，鼠标悬停显示含义 */
+        private TextBlock AddMetric(Grid grid, int col, string iconPath, string color, HorizontalAlignment align, string tip)
+        {
+            StackPanel cell = new StackPanel();
+            cell.Orientation = Orientation.Horizontal;
+            cell.HorizontalAlignment = align;
+            cell.VerticalAlignment = VerticalAlignment.Center;
+            cell.ToolTip = tip;
+            Grid.SetColumn(cell, col);
 
             ShapePath icon = new ShapePath();
             icon.Data = Geometry.Parse(iconPath);
             icon.Stretch = Stretch.Uniform;
-            icon.Width = 12;
-            icon.Height = 12;
+            icon.Width = 9;
+            icon.Height = 9;
             icon.VerticalAlignment = VerticalAlignment.Center;
-            icon.Margin = new Thickness(0, 0, 7, 0);
+            icon.Margin = new Thickness(0, 0, 4, 0);
             icon.Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString(color));
-            tile.Children.Add(icon);
-
-            StackPanel texts = new StackPanel();
+            cell.Children.Add(icon);
 
             TextBlock value = new TextBlock();
             value.Text = "-";
-            value.FontSize = 14;
-            value.FontWeight = FontWeights.SemiBold;
-            value.Foreground = ValueBrush;
+            value.FontSize = 11;
+            value.Foreground = MakeBrush(0x98, 0xA0, 0xB4);
+            value.VerticalAlignment = VerticalAlignment.Center;
             TextOptions.SetTextFormattingMode(value, TextFormattingMode.Display);
-            texts.Children.Add(value);
+            cell.Children.Add(value);
 
-            TextBlock cap = new TextBlock();
-            cap.Text = caption;
-            cap.FontSize = 9.5;
-            cap.Foreground = CaptionBrush;
-            cap.Margin = new Thickness(0, 1, 0, 0);
-            TextOptions.SetTextFormattingMode(cap, TextFormattingMode.Display);
-            texts.Children.Add(cap);
-
-            tile.Children.Add(texts);
-            grid.Children.Add(tile);
+            grid.Children.Add(cell);
             return value;
         }
 
@@ -884,7 +953,7 @@ namespace WbPet
             _emoCool[ev.Emotion] = now;
 
             ApplyAccent(ev.Accent);
-            _title.Text = ev.Title.Length > 0 ? ev.Title : PersonaTitle();
+            _title.Text = PersonaName();
             _emotionText.Text = ev.Text;
             _emotionText.Visibility = Visibility.Visible;
             _tempUntil = now.AddSeconds(Math.Max(3, ev.DurSec));
@@ -894,16 +963,13 @@ namespace WbPet
             SaveState();
         }
 
+        /** 情绪色只落在一颗 5px 的圆点上，卡片描边保持中性 */
         private void ApplyAccent(string hex)
         {
             try
             {
                 Color color = (Color)ColorConverter.ConvertFromString(hex);
-                SolidColorBrush brush = new SolidColorBrush(color);
-                _bubbleBody.BorderBrush = brush;
-                _tail.Fill = new SolidColorBrush(Color.FromRgb(
-                    (byte)(color.R / 4 + 0x14), (byte)(color.G / 4 + 0x16), (byte)(color.B / 4 + 0x1C)));
-                _tail.Stroke = brush;
+                _dot.Background = new SolidColorBrush(color);
             }
             catch (Exception) { }
         }
@@ -1359,8 +1425,8 @@ namespace WbPet
 
                 string todayCredit = GetValue(map, "todayCredit", "-");
                 string sessions = GetValue(map, "todaySessions", "0");
-                _footerBase = "\u4ECA\u65E5 " + todayCredit + " \u79EF\u5206 \u00B7 " + sessions + " \u4F1A\u8BDD";
-                _footer.Text = _footerBase;
+                _todayValue.Text = todayCredit;
+                _todaySessions.Text = sessions + " \u4F1A\u8BDD";
 
                 // 有事件通道时不再用 mtime 弹气泡，避免和情绪事件双弹
                 if (changed && !File.Exists(_eventsFile))
@@ -1376,15 +1442,23 @@ namespace WbPet
 
             try
             {
+                // 页脚只用于临时消息（换形象进度等），平时隐藏
                 if (File.Exists(_statusFile))
                 {
                     string st = File.ReadAllText(_statusFile, Encoding.UTF8).Trim();
-                    if (st.Length > 0) { _footer.Text = st; }
-                    else if (_footerBase.Length > 0) { _footer.Text = _footerBase; }
+                    if (st.Length > 0)
+                    {
+                        _footer.Text = st;
+                        _footer.Visibility = Visibility.Visible;
+                    }
+                    else
+                    {
+                        _footer.Visibility = Visibility.Collapsed;
+                    }
                 }
-                else if (_footerBase.Length > 0)
+                else
                 {
-                    _footer.Text = _footerBase;
+                    _footer.Visibility = Visibility.Collapsed;
                 }
             }
             catch (Exception) { }

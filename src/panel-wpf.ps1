@@ -58,76 +58,90 @@ $xaml = @'
     <StackPanel VerticalAlignment="Bottom" HorizontalAlignment="Center" Margin="0,0,0,6">
 
       <Grid x:Name="BubbleRoot" Visibility="Collapsed" Margin="0,0,0,8" HorizontalAlignment="Center">
-        <Path x:Name="Tail" Fill="#1B1E26" Stroke="#333949" StrokeThickness="1.2"
+        <Path x:Name="Tail" Fill="#1B1E26" Stroke="#333949" StrokeThickness="0.5"
               HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,-13"
               Data="M 0,0 L 26,0 L 13,13 Z" />
-        <Border Background="#1B1E26" BorderBrush="#333949" BorderThickness="1.2"
-                CornerRadius="16" Padding="16,12,16,11" Width="272">
+        <Border Background="#1B1E26" BorderBrush="#333949" BorderThickness="0.5"
+                CornerRadius="16" Padding="15,11,15,12" Width="288">
           <Border.Effect>
-            <DropShadowEffect BlurRadius="18" ShadowDepth="4" Direction="270" Opacity="0.45" Color="#000000"/>
+            <DropShadowEffect BlurRadius="14" ShadowDepth="4" Direction="270" Opacity="0.32" Color="#000000"/>
           </Border.Effect>
           <StackPanel>
 
-            <Grid Margin="0,0,0,10">
-              <TextBlock x:Name="TitleText" Text="WorkBuddy" FontSize="11"
-                         Foreground="#8A93A8" HorizontalAlignment="Left"
+            <Grid>
+              <TextBlock x:Name="TitleText" Text="WorkBuddy" FontSize="10.5"
+                         Foreground="#8A93A8" HorizontalAlignment="Left" VerticalAlignment="Center"
                          TextOptions.TextFormattingMode="Display"/>
-              <TextBlock x:Name="TimeText" Text="" FontSize="11"
-                         Foreground="#5C6478" HorizontalAlignment="Right"
+              <TextBlock x:Name="TimeText" Text="" FontSize="10.5"
+                         Foreground="#5C6478" HorizontalAlignment="Right" VerticalAlignment="Center"
                          TextOptions.TextFormattingMode="Display"/>
             </Grid>
 
-            <Grid Margin="0,0,0,2">
+            <Border Height="1" Background="#262B36" Margin="0,9,0,0"/>
+
+            <Grid Margin="0,11,0,12">
+              <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" VerticalAlignment="Bottom">
+                <TextBlock Text="今日" FontSize="10" Foreground="#6B7385"
+                           VerticalAlignment="Bottom" Margin="0,0,6,4"
+                           TextOptions.TextFormattingMode="Display"/>
+                <TextBlock x:Name="TodayValue" Text="—" FontSize="23" FontWeight="Medium"
+                           Foreground="#EDEFF5" VerticalAlignment="Bottom" Margin="0,0,5,0"
+                           TextOptions.TextFormattingMode="Display"/>
+                <TextBlock Text="积分" FontSize="10" Foreground="#6B7385"
+                           VerticalAlignment="Bottom" Margin="0,0,0,4"
+                           TextOptions.TextFormattingMode="Display"/>
+              </StackPanel>
+              <TextBlock x:Name="TodaySessions" Text="" FontSize="10.5" Foreground="#5C6478"
+                         HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,0,4"
+                         TextOptions.TextFormattingMode="Display"/>
+            </Grid>
+
+            <Border Height="1" Background="#262B36"/>
+
+            <Grid Margin="0,10,0,0">
               <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="*"/>
               </Grid.ColumnDefinitions>
-              <Grid.RowDefinitions>
-                <RowDefinition Height="Auto"/>
-                <RowDefinition Height="Auto"/>
-              </Grid.RowDefinitions>
 
-              <StackPanel Grid.Row="0" Grid.Column="0" Orientation="Horizontal" Margin="0,0,0,9">
-                <Path Fill="#5EEAD4" Stretch="Uniform" Width="12" Height="12" VerticalAlignment="Center" Margin="0,0,7,0"
+              <StackPanel Grid.Column="0" Orientation="Horizontal" HorizontalAlignment="Left"
+                          VerticalAlignment="Center" ToolTip="输入 token">
+                <Path Fill="#5EEAD4" Stretch="Uniform" Width="9" Height="9" VerticalAlignment="Center" Margin="0,0,4,0"
                       Data="M8,2 L14,9 L10.5,9 L10.5,14 L5.5,14 L5.5,9 L2,9 Z"/>
-                <StackPanel>
-                  <TextBlock x:Name="TurnInVal" Text="—" FontSize="14" FontWeight="SemiBold" Foreground="#EDEFF5"/>
-                  <TextBlock Text="输入" FontSize="9.5" Foreground="#6B7385" Margin="0,1,0,0"/>
-                </StackPanel>
+                <TextBlock x:Name="TurnInVal" Text="—" FontSize="11" Foreground="#98A0B4"
+                           VerticalAlignment="Center" TextOptions.TextFormattingMode="Display"/>
               </StackPanel>
 
-              <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal" Margin="0,0,0,9">
-                <Path Fill="#A78BFA" Stretch="Uniform" Width="12" Height="12" VerticalAlignment="Center" Margin="0,0,7,0"
+              <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Center"
+                          VerticalAlignment="Center" ToolTip="输出 token">
+                <Path Fill="#A78BFA" Stretch="Uniform" Width="9" Height="9" VerticalAlignment="Center" Margin="0,0,4,0"
                       Data="M8,14 L2,7 L5.5,7 L5.5,2 L10.5,2 L10.5,7 L14,7 Z"/>
-                <StackPanel>
-                  <TextBlock x:Name="TurnOutVal" Text="—" FontSize="14" FontWeight="SemiBold" Foreground="#EDEFF5"/>
-                  <TextBlock Text="输出" FontSize="9.5" Foreground="#6B7385" Margin="0,1,0,0"/>
-                </StackPanel>
+                <TextBlock x:Name="TurnOutVal" Text="—" FontSize="11" Foreground="#98A0B4"
+                           VerticalAlignment="Center" TextOptions.TextFormattingMode="Display"/>
               </StackPanel>
 
-              <StackPanel Grid.Row="1" Grid.Column="0" Orientation="Horizontal">
-                <Path Fill="#FBBF24" Stretch="Uniform" Width="12" Height="12" VerticalAlignment="Center" Margin="0,0,7,0"
+              <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Center"
+                          VerticalAlignment="Center" ToolTip="缓存命中率">
+                <Path Fill="#FBBF24" Stretch="Uniform" Width="9" Height="9" VerticalAlignment="Center" Margin="0,0,4,0"
                       Data="M9.5,1 L3,9 L7,9 L6.5,15 L13,7 L9,7 Z"/>
-                <StackPanel>
-                  <TextBlock x:Name="CacheVal" Text="—" FontSize="14" FontWeight="SemiBold" Foreground="#EDEFF5"/>
-                  <TextBlock Text="缓存命中" FontSize="9.5" Foreground="#6B7385" Margin="0,1,0,0"/>
-                </StackPanel>
+                <TextBlock x:Name="CacheVal" Text="—" FontSize="11" Foreground="#98A0B4"
+                           VerticalAlignment="Center" TextOptions.TextFormattingMode="Display"/>
               </StackPanel>
 
-              <StackPanel Grid.Row="1" Grid.Column="1" Orientation="Horizontal">
-                <Path Fill="#34D399" Stretch="Uniform" Width="12" Height="12" VerticalAlignment="Center" Margin="0,0,7,0"
+              <StackPanel Grid.Column="3" Orientation="Horizontal" HorizontalAlignment="Right"
+                          VerticalAlignment="Center" ToolTip="本轮积分">
+                <Path Fill="#34D399" Stretch="Uniform" Width="9" Height="9" VerticalAlignment="Center" Margin="0,0,4,0"
                       Data="M8,2 L13,8 L8,14 L3,8 Z"/>
-                <StackPanel>
-                  <TextBlock x:Name="CreditVal" Text="—" FontSize="14" FontWeight="SemiBold" Foreground="#EDEFF5"/>
-                  <TextBlock Text="积分" FontSize="9.5" Foreground="#6B7385" Margin="0,1,0,0"/>
-                </StackPanel>
+                <TextBlock x:Name="CreditVal" Text="—" FontSize="11" Foreground="#98A0B4"
+                           VerticalAlignment="Center" TextOptions.TextFormattingMode="Display"/>
               </StackPanel>
             </Grid>
 
-            <Border Height="1" Background="#262B36" Margin="0,10,0,7"/>
-
-            <TextBlock x:Name="FooterText" Text="" FontSize="10.5" Foreground="#6B7385"
-                       HorizontalAlignment="Center" TextOptions.TextFormattingMode="Display"/>
+            <TextBlock x:Name="FooterText" Text="" FontSize="10" Foreground="#6B7385"
+                       HorizontalAlignment="Center" Margin="0,7,0,0" Visibility="Collapsed"
+                       TextOptions.TextFormattingMode="Display"/>
 
           </StackPanel>
         </Border>
@@ -156,6 +170,8 @@ $script:TurnInVal = $win.FindName('TurnInVal')
 $script:TurnOutVal = $win.FindName('TurnOutVal')
 $script:CacheVal = $win.FindName('CacheVal')
 $script:CreditVal = $win.FindName('CreditVal')
+$script:TodayValue = $win.FindName('TodayValue')
+$script:TodaySessions = $win.FindName('TodaySessions')
 $script:FooterText = $win.FindName('FooterText')
 $script:MascotShift = $win.FindName('MascotShift')
 
@@ -313,7 +329,6 @@ function Start-Bounce {
 # ---- data -----------------------------------------------------------------
 $script:lastSig = ''
 $script:firstLoad = $true
-$script:footerBase = ''
 
 function Read-PanelData {
     $map = @{}
@@ -347,8 +362,8 @@ function Update-Panel {
 
                 $today = if ($d.ContainsKey('todayCredit')) { $d['todayCredit'] } else { '—' }
                 $sess = if ($d.ContainsKey('todaySessions')) { $d['todaySessions'] } else { '0' }
-                $script:footerBase = "今日 $today 积分 · $sess 会话"
-                $script:FooterText.Text = $script:footerBase
+                $script:TodayValue.Text = $today
+                $script:TodaySessions.Text = "$sess 会话"
 
                 if ($changed) {
                     Show-BubbleFor 6
@@ -358,15 +373,18 @@ function Update-Panel {
             }
         }
 
-        # switching feedback
+        # 页脚只用于临时消息（换形象进度等），平时隐藏
+        $hasStatus = $false
         if (Test-Path -LiteralPath $script:StatusFile) {
             try {
                 $status = (Get-Content -LiteralPath $script:StatusFile -Raw -Encoding UTF8).Trim()
-                if ($status) { $script:FooterText.Text = $status }
+                if ($status) {
+                    $script:FooterText.Text = $status
+                    $hasStatus = $true
+                }
             } catch { }
-        } elseif ($script:footerBase) {
-            $script:FooterText.Text = $script:footerBase
         }
+        $script:FooterText.Visibility = if ($hasStatus) { 'Visible' } else { 'Collapsed' }
     } catch { }
 }
 
