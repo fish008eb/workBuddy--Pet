@@ -124,6 +124,12 @@ if (Test-Path $personas) {
     Write-Ok '已删除 personas.txt'
 }
 
+$sounds = Join-Path $HooksDir 'assets\sounds'
+if (Test-Path $sounds) {
+    Remove-Item -LiteralPath $sounds -Recurse -Force -ErrorAction SilentlyContinue
+    Write-Ok '已删除提示音'
+}
+
 $tools = Join-Path $HooksDir 'tools'
 if (Test-Path $tools) {
     Remove-Item -LiteralPath $tools -Recurse -Force -ErrorAction SilentlyContinue

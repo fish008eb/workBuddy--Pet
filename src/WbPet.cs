@@ -24,6 +24,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
+using System.Media;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
@@ -140,6 +141,12 @@ namespace WbPet
         private DispatcherTimer _eventTimer;
         private DispatcherTimer _clockTimer;
 
+        private readonly string _soundsDir;
+        private SoundPlayer _doneSound;
+        private SoundPlayer _alertSound;
+        private bool _soundOn = true;
+        private string _lastEmotion = "calm";
+
         private static Brush MakeBrush(byte r, byte g, byte b)
         {
             SolidColorBrush brush = new SolidColorBrush(Color.FromRgb(r, g, b));
@@ -161,6 +168,7 @@ namespace WbPet
             _stateFile = Path.Combine(baseDir, "pet-state.txt");
             _ledgerFile = Path.Combine(baseDir, "pet-ledger.txt");
             _personasFile = Path.Combine(_assetsDir, "personas.txt");
+            _soundsDir = Path.Combine(_assetsDir, "sounds");
 
             Width = 340;
             Height = 448;
@@ -180,6 +188,7 @@ namespace WbPet
 
             LoadPersonas();
             LoadState();
+            LoadSounds();
 
             _loadedSkin = ReadCurrentSkinId();
 
@@ -496,6 +505,35 @@ namespace WbPet
             verbRoot.Items.Add(MakeVerbosityItem("chatty", "\u8BDD\u75E8"));
             menu.Items.Add(verbRoot);
 
+            // sound
+            MenuItem soundRoot = new MenuItem();
+            soundRoot.Header = "\u63D0\u793A\u97F3";
+
+            MenuItem soundOn = new MenuItem();
+            soundOn.Header = "\u5F00";
+            soundOn.IsChecked = _soundOn;
+            soundOn.Click += delegate { SetSound(true, soundRoot); };
+            soundRoot.Items.Add(soundOn);
+
+            MenuItem soundOff = new MenuItem();
+            soundOff.Header = "\u5173";
+            soundOff.IsChecked = !_soundOn;
+            soundOff.Click += delegate { SetSound(false, soundRoot); };
+            soundRoot.Items.Add(soundOff);
+
+            soundRoot.Items.Add(new Separator());
+
+            MenuItem soundTest = new MenuItem();
+            soundTest.Header = "\u8BD5\u542C";
+            soundTest.Click += delegate
+            {
+                try { if (_doneSound != null) { _doneSound.Play(); } }
+                catch (Exception) { }
+            };
+            soundRoot.Items.Add(soundTest);
+
+            menu.Items.Add(soundRoot);
+
             menu.Items.Add(new Separator());
 
             MenuItem mute = new MenuItem();
@@ -587,6 +625,20 @@ namespace WbPet
             clicked.FontWeight = FontWeights.Bold;
             _verbosity = (string)clicked.Tag;
             SaveState();
+        }
+
+        private void SetSound(bool on, MenuItem root)
+        {
+            _soundOn = on;
+            // 立刻落盘，跳过 SaveState 的防抖
+            _lastSaveAt = DateTime.MinValue;
+            SaveState();
+            if (root == null) { return; }
+            for (int i = 0; i < root.Items.Count && i < 2; i++)
+            {
+                MenuItem mi = root.Items[i] as MenuItem;
+                if (mi != null) { mi.IsChecked = (i == 0) == on; }
+            }
         }
 
         private void OnSkinClick(object sender, RoutedEventArgs e)
@@ -693,6 +745,41 @@ namespace WbPet
             List<string[]> list;
             if (_lineMap.TryGetValue(lookup, out list) && list.Count > 0) { return list[0][1]; }
             return "";
+        }
+
+        // ---------- sound ----------
+        /** 预加载两个提示音：完成（清脆）与告警（低沉），缺失时静默降级 */
+        private void LoadSounds()
+        {
+            try
+            {
+                string done = Path.Combine(_soundsDir, "turn-done.wav");
+                string alert = Path.Combine(_soundsDir, "turn-alert.wav");
+                if (File.Exists(done))
+                {
+                    _doneSound = new SoundPlayer(done);
+                    _doneSound.Load();
+                }
+                if (File.Exists(alert))
+                {
+                    _alertSound = new SoundPlayer(alert);
+                    _alertSound.Load();
+                }
+            }
+            catch (Exception) { }
+        }
+
+        /** 每轮结束响一声；静音期与关闭音效时不响 */
+        private void PlayDoneSound()
+        {
+            if (!_soundOn) { return; }
+            if (DateTime.Now < _quietUntil) { return; }
+            try
+            {
+                SoundPlayer player = _lastEmotion == "worried" && _alertSound != null ? _alertSound : _doneSound;
+                if (player != null) { player.Play(); }
+            }
+            catch (Exception) { }
         }
 
         // ---------- frames / skins ----------
@@ -951,6 +1038,7 @@ namespace WbPet
             _lastBubbleAt = now;
             _recentBubbles.Add(now);
             _emoCool[ev.Emotion] = now;
+            _lastEmotion = ev.Emotion;
 
             ApplyAccent(ev.Accent);
             _title.Text = PersonaName();
@@ -1207,6 +1295,7 @@ namespace WbPet
                     string v = line.Substring(i + 1).Trim();
                     if (k == "persona" && v.Length > 0) { _persona = v; }
                     else if (k == "verbosity" && v.Length > 0) { _verbosity = v; }
+                    else if (k == "sound") { _soundOn = v != "off"; }
                     else if (k == "winX") { int.TryParse(v, out x); }
                     else if (k == "winY") { int.TryParse(v, out y); }
                 }
@@ -1232,6 +1321,7 @@ namespace WbPet
                 sb.AppendLine("version=1");
                 sb.AppendLine("persona=" + _persona);
                 sb.AppendLine("verbosity=" + _verbosity);
+                sb.AppendLine("sound=" + (_soundOn ? "on" : "off"));
                 sb.AppendLine("winX=" + (int)Left);
                 sb.AppendLine("winY=" + (int)Top);
                 sb.AppendLine("eventOffset=" + _eventOffset);
@@ -1428,13 +1518,19 @@ namespace WbPet
                 _todayValue.Text = todayCredit;
                 _todaySessions.Text = sessions + " \u4F1A\u8BDD";
 
-                // 有事件通道时不再用 mtime 弹气泡，避免和情绪事件双弹
-                if (changed && !File.Exists(_eventsFile))
+                if (changed)
                 {
-                    _tempUntil = DateTime.Now.AddSeconds(6);
-                    _hideTimer.Stop();
-                    _bubble.Visibility = Visibility.Visible;
-                    Bounce(9, 2, 280);
+                    // 每轮回答结束响一声；静音期或关闭音效时不响
+                    PlayDoneSound();
+
+                    // 有事件通道时不再用 mtime 弹气泡，避免和情绪事件双弹
+                    if (!File.Exists(_eventsFile))
+                    {
+                        _tempUntil = DateTime.Now.AddSeconds(6);
+                        _hideTimer.Stop();
+                        _bubble.Visibility = Visibility.Visible;
+                        Bounce(9, 2, 280);
+                    }
                 }
                 _firstLoad = false;
             }

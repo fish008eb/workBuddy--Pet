@@ -62,7 +62,10 @@ $assetsTarget = Join-Path $HooksDir 'assets'
 New-Item -ItemType Directory -Force -Path $assetsTarget | Out-Null
 Copy-Item -Path (Join-Path $root 'assets\skins.json') -Destination $assetsTarget -Force
 Copy-Item -Path (Join-Path $root 'assets\personas.txt') -Destination $assetsTarget -Force
-Write-Ok '已复制 assets\skins.json（形象清单）与 assets\personas.txt（人格文案）'
+$soundsTarget = Join-Path $assetsTarget 'sounds'
+New-Item -ItemType Directory -Force -Path $soundsTarget | Out-Null
+Copy-Item -Path (Join-Path $root 'assets\sounds\*.wav') -Destination $soundsTarget -Force -ErrorAction SilentlyContinue
+Write-Ok '已复制 skins.json / personas.txt / sounds\*.wav'
 
 # 面板第一次启动前没有 pet-state.txt，先放一份默认偏好，避免面板与 hook 各写一份
 $stateFile = Join-Path $HooksDir 'pet-state.txt'

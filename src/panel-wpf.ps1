@@ -47,6 +47,18 @@ $script:CurrentFile = Join-Path $script:SkinsDir 'current.txt'
 $script:StatusFile = Join-Path $script:SkinsDir 'status.txt'
 $script:SwitchScript = Join-Path $script:HookDir 'tools\switch-skin.js'
 
+# 提示音（每轮结束响一声；文件缺失时静默降级）
+$script:SoundPlayer = $null
+$soundPath = Join-Path $script:AssetsDir 'sounds\turn-done.wav'
+if (Test-Path -LiteralPath $soundPath) {
+    try {
+        $script:SoundPlayer = New-Object System.Media.SoundPlayer $soundPath
+        $script:SoundPlayer.Load()
+    } catch {
+        $script:SoundPlayer = $null
+    }
+}
+
 $xaml = @'
 <Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -366,6 +378,9 @@ function Update-Panel {
                 $script:TodaySessions.Text = "$sess 会话"
 
                 if ($changed) {
+                    if ($script:SoundPlayer) {
+                        try { $script:SoundPlayer.Play() } catch { }
+                    }
                     Show-BubbleFor 6
                     Start-Bounce
                 }
