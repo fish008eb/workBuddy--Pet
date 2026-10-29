@@ -27,4 +27,7 @@ WbPet.exe
 .idea/
 Thumbs.db
 desktop.ini
+
+# 打包产物
+dist/
 *.tmp

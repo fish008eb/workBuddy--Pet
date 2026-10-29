@@ -230,11 +230,27 @@ build-pet.cmd
 
 脚本会依次：定位编译器 → 校验 7 个程序集 → 校验源码是 UTF-8 with BOM → 用响应文件编译 → 编译成功才重启面板并确认进程存活。任一步失败都会打印具体是哪个文件/哪一步，失败时保留 `build.rsp` 便于排查。
 
-编译完成后 `start-panel.js` 会自动优先使用 `WbPet.exe`，不需要改配置。
+编译完成后 `start-panel.js` 会自动优先使用 `WbPet.exe`（优先级：WbPet.exe → run-panel.vbs 兜底），不需要改配置。
 
-脚本用系统自带的 `csc.exe`（.NET Framework 4.x）编译 `src\WbPet.cs`，产出 `WbPet.exe` 并重启面板。
+### 打成可分发安装包
 
-`start-panel.js` 的启动优先级是 **WbPet.exe → run-panel.vbs（PowerShell 兜底）**，编译完不用改任何配置。
+```powershell
+powershell -ExecutionPolicy Bypass -File tools\make-package.ps1
+```
+
+产出 `dist/wb-usage-pet-v<版本>.zip`（约 150KB），收件人解压后双击 `install.cmd` 即可：
+
+| 包内文件 | 作用 |
+|---|---|
+| `install.cmd` | 入口：检查 Node.js 与 WorkBuddy 配置，再调用安装脚本 |
+| `install.ps1` / `uninstall.ps1` | 安装 / 卸载（卸载会备份原配置） |
+| `安装说明.txt` | 面向收件人的步骤与排错（UTF-8 with BOM，记事本可直接看） |
+| `src/` | 全部脚本 + **预编译的 WbPet.exe** |
+| `tools/` `assets/` | 形象、换肤、音效工具与资源 |
+
+打包脚本有一道保险：`WbPet.exe` 比 `WbPet.cs` 旧时**拒绝打包**，避免把改版前的面板发出去（确实要发加 `-AllowStale`）。
+
+**收件人需要**：Windows 10/11、Node.js 18+、并且启动过一次 WorkBuddy（用于生成配置）。
 
 ## 十、工作原理
 
