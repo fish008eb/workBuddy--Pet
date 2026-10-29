@@ -13,6 +13,12 @@
 // NOTE: this file must stay UTF-8 **with BOM**. csc reads BOM-less files as ANSI,
 // which corrupts the Chinese literals and emoji below.
 
+// System.Windows.Shapes.Path and System.IO.Path share a simple name, so
+// importing both namespaces makes every "Path" reference ambiguous (CS0104).
+// The shape type is therefore imported under an alias (alias directives must
+// precede all plain using directives).
+using ShapePath = System.Windows.Shapes.Path;
+
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -28,7 +34,6 @@ using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Media.Effects;
 using System.Windows.Media.Imaging;
-using System.Windows.Shapes;
 using System.Windows.Threading;
 
 namespace WbPet
@@ -113,7 +118,7 @@ namespace WbPet
         private Image _mascot;
         private Grid _bubble;
         private Border _bubbleBody;
-        private Path _tail;
+        private ShapePath _tail;
         private TextBlock _title;
         private TextBlock _timeText;
         private TextBlock _turnIn;
@@ -199,7 +204,7 @@ namespace WbPet
             _bubble.HorizontalAlignment = HorizontalAlignment.Center;
 
             // tail behind the body so its top edge is hidden
-            _tail = new Path();
+            _tail = new ShapePath();
             _tail.Fill = BgBrush;
             _tail.Stroke = BorderBrushDark;
             _tail.StrokeThickness = 1.2;
@@ -328,7 +333,7 @@ namespace WbPet
             Grid.SetRow(tile, row);
             Grid.SetColumn(tile, col);
 
-            Path icon = new Path();
+            ShapePath icon = new ShapePath();
             icon.Data = Geometry.Parse(iconPath);
             icon.Stretch = Stretch.Uniform;
             icon.Width = 12;

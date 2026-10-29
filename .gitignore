@@ -17,6 +17,7 @@ pet-ledger.txt
 pet-state.txt
 pet-state.txt.tmp
 panel-err.log
+build.rsp
 *.log
 WbPet.exe
 
