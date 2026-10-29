@@ -1,8 +1,10 @@
-# WorkBuddy 用量宠物（wb-usage-pet）
+# WorkBuddy 用量宠物 · wb-usage-pet
 
 给 WorkBuddy 桌面版加一个**会说人话的用量看板**：屏幕右下角蹲着一只小角色，每轮对话结束它跳一下、弹个气泡，告诉你这一轮烧了多少 token、缓存命中了多少、花了多少积分。
 
 > WorkBuddy 桌面端底部只显示「共消耗 ◇x.xx 积分」，看不到 token 用量和缓存命中。本项目就是为了把这两个数字搬到眼前。
+
+*English: a desktop pet for WorkBuddy that shows per-turn tokens, cache-hit rate and credits in a floating speech bubble. Hooks-based, Windows only, zero runtime dependencies for the data pipeline.*
 
 ```
         ┌─────────────────────────────┐
@@ -206,6 +208,7 @@ build-pet.cmd
 
 ```
 wb-usage-pet/
+├── package.json            项目元信息与 npm 快捷脚本
 ├── install.ps1              安装：复制脚本 + 注册 hooks + 下载形象
 ├── uninstall.ps1            卸载：关进程 + 撤 hooks + 删文件
 ├── src/
@@ -223,6 +226,14 @@ wb-usage-pet/
 │   ├── skins.json           形象清单（只存 id、名称、下载地址）
 │   └── skins/<id>/          运行时生成：该形象的序列帧与 current.txt（不入库）
 └── README.md
+```
+
+npm 快捷脚本（可选，装了 Node 就能用）：
+
+```bash
+npm run skin:list        # 列出形象
+npm run skin -- quantum  # 切换形象
+npm run sprite -- "D:\pic\a.png"   # 拆帧
 ```
 
 ## 十一、常见问题

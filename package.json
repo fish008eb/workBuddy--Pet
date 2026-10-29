@@ -1,0 +1,26 @@
+{
+  "name": "wb-usage-pet",
+  "version": "1.1.0",
+  "description": "WorkBuddy desktop usage pet: per-turn tokens, cache-hit rate and credits in a floating speech-bubble panel.",
+  "private": true,
+  "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "workbuddy",
+    "usage",
+    "token",
+    "cache-hit-rate",
+    "apng",
+    "wpf",
+    "desktop-pet",
+    "windows"
+  ],
+  "scripts": {
+    "skin:list": "node tools/switch-skin.js list",
+    "skin": "node tools/switch-skin.js",
+    "sprite": "node tools/fetch-sprite.js",
+    "panel": "node src/start-panel.js"
+  }
+}
