@@ -387,7 +387,7 @@ function projectLabel(encoded) {
  * 换用 200k 量级的模型时，在 pet-budget.txt 里写一行 `ctxlimit=200000` 就会重算。
  */
 function readBudget() {
-  const out = { daily: 0, monthly: 0, ctxLimit: 1000000 };
+  const out = { daily: 0, monthly: 0, ctxLimit: 1000000, notify: false };
   let text;
   try {
     text = fs.readFileSync(BUDGET_FILE, 'utf8');
@@ -403,6 +403,7 @@ function readBudget() {
     if (k === 'daily') { out.daily = n; }
     if (k === 'monthly') { out.monthly = n; }
     if (k === 'ctxlimit') { out.ctxLimit = n; }
+    if (k === 'notify') { out.notify = n > 0; }
   }
   return out;
 }
@@ -1089,7 +1090,10 @@ function main() {
         log('情绪判定失败: ' + (e && e.message ? e.message : e));
       }
 
-      notify(msg);
+      // 系统通知默认关闭：它每轮起一个 PowerShell 进程（WinRT toast 初始化
+      // 就要几百毫秒），而宠物自己的气泡 + 提示音已经把「这轮结束了」说清楚了。
+      // 想用就在 pet-budget.txt 里写 notify=1。
+      if (budget.notify) { notify(msg); }
     } catch (e) {
       log('异常: ' + (e && e.stack ? e.stack : e));
     }

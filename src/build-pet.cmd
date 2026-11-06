@@ -67,7 +67,12 @@ rem The source holds Chinese text and emoji literals. Without a BOM the old
 rem compiler decodes it as ANSI, the literals turn into garbage and the panel
 rem shows mojibake. Check the first three bytes: EF BB BF.
 rem Exit code 0 = BOM present, 1 = BOM missing, 9009 = powershell unavailable.
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$b=[System.IO.File]::ReadAllBytes('%~dp0%SRC%'); if ($b.Length -ge 3 -and $b[0] -eq 239 -and $b[1] -eq 187 -and $b[2] -eq 191) { exit 0 } else { exit 1 }"
+rem Call it by absolute path: WorkBuddy's hook environment trims PATH and does
+rem not contain System32, so a bare "powershell" reports 9009 and the check
+rem silently degrades to "UNVERIFIED" - which is the same as not checking.
+set "PSEXE=%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe"
+if not exist "%PSEXE%" set "PSEXE=powershell"
+"%PSEXE%" -NoProfile -ExecutionPolicy Bypass -Command "$b=[System.IO.File]::ReadAllBytes('%~dp0%SRC%'); if ($b.Length -ge 3 -and $b[0] -eq 239 -and $b[1] -eq 187 -and $b[2] -eq 191) { exit 0 } else { exit 1 }"
 if errorlevel 9009 goto :bomunknown
 if errorlevel 1 goto :nobom
 echo [3/6] encoding    : UTF-8 with BOM ok

@@ -2470,6 +2470,7 @@ namespace WbPet
         private readonly Grid _trend;
         private DispatcherTimer _timer;
         private bool _placed;
+        private long _lastStamp = -1;
 
         private static Brush Frozen(byte r, byte g, byte b)
         {
@@ -2653,10 +2654,32 @@ namespace WbPet
             return Math.Round(n).ToString("0");
         }
 
+        /**
+         * 三个数据文件的修改时间之和，用来判断「要不要重建」。
+         * 之前是每 2 秒无条件清空重画整棵树——开着窗口时看着在闪，
+         * 而且 30 个趋势柱 + N 行控件反复分配，纯浪费。
+         */
+        private long SourceStamp()
+        {
+            return StampOf(_projectsFile) + StampOf(_historyFile) + StampOf(_dataFile);
+        }
+
+        private static long StampOf(string path)
+        {
+            try
+            {
+                return File.Exists(path) ? File.GetLastWriteTimeUtc(path).Ticks : 0L;
+            }
+            catch (Exception) { return 0L; }
+        }
+
         public void Refresh()
         {
             try
             {
+                long stamp = SourceStamp();
+                if (stamp == _lastStamp) { return; }   // 数据没变，别动界面
+                _lastStamp = stamp;
                 string month = "";
                 string since = "";
                 List<string[]> rows = new List<string[]>();

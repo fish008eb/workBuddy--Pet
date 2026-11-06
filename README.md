@@ -159,6 +159,13 @@ v1.3 之前宠物只会在**一轮结束后**报账，中间那十几分钟它�
 
 **预测口径**：日均 = 本月累计 ÷ **有记录的天数**，不是自然日。周末不办公的话，按自然日会把均值摊薄，预测就乐观得离谱。只有当「按当前速度推到月底会超」时才给具体日期，否则直接说「本月够用」。
 
+`pet-budget.txt` 是唯一的配置文件，除了 `daily=` / `monthly=` 还有两项：
+
+| 键 | 默认 | 作用 |
+|---|---|---|
+| `ctxlimit=200000` | 1000000 | 上下文占比的分母（模型窗口） |
+| `notify=1` | 不启用 | 每轮额外弹一条 Windows 系统通知。默认关：它每轮要起一个 PowerShell 进程（WinRT toast 初始化就几百毫秒），而气泡 + 提示音已经把「这轮结束了」说清楚了 |
+
 `复制今日小结` 不是简单拼数字，它会把项目分布也算进去：
 
 ```
@@ -444,7 +451,7 @@ wb-usage-pet/
 │   ├── start-panel.js       SessionStart hook：WMI 拉起面板（单实例）
 │   ├── WbPet.cs             WPF 面板（唯一宿主，含实时状态与成本看板）
 │   ├── build-pet.cmd        编译 WbPet.exe
-│   └── toast.ps1            Windows 通知通道（默认关闭时静默失败）
+│   └── toast.ps1            Windows 通知通道（默认不启用，notify=1 才走）
 ├── tools/
 │   ├── fetch-sprite.js      APNG 拆帧工具（零依赖，可当模块用）
 │   └── switch-skin.js       形象切换：下载 / 缓存 / 改 current.txt
