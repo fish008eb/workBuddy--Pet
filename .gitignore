@@ -20,6 +20,7 @@ pet-bus.port
 pet-summary.txt
 pet-history.txt
 pet-budget.txt
+pet-projects.txt
 panel-err.log
 build.rsp
 *.log

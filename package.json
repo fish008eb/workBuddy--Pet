@@ -1,7 +1,7 @@
 {
   "name": "wb-usage-pet",
-  "version": "1.3.0",
-  "description": "WorkBuddy desktop pet: live agent state, per-turn tokens, cache-hit rate, credits and a daily budget line in a floating speech bubble.",
+  "version": "1.4.0",
+  "description": "WorkBuddy desktop pet: live agent state, per-turn tokens, daily budget, a monthly per-project cost board and a click-to-return permission reminder.",
   "private": true,
   "license": "MIT",
   "engines": {

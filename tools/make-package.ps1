@@ -86,7 +86,7 @@ New-Item -ItemType Directory -Force -Path $srcOut | Out-Null
 $srcSkip = @('*.log', 'panel-data.txt', 'panel-lines.txt', 'last-turn.txt',
              'pet-events.txt', 'pet-events.old.txt', 'pet-ledger.txt', 'pet-state.txt',
              'pet-state.txt.tmp', 'pet-bus.port', 'pet-summary.txt', 'pet-history.txt',
-             'pet-budget.txt', '*.exe', '*.pdb')
+             'pet-budget.txt', 'pet-projects.txt', '*.exe', '*.pdb')
 Copy-Item (Join-Path $root 'src\*') $srcOut -Recurse -Force -Exclude $srcSkip
 Copy-Item -LiteralPath $Exe (Join-Path $srcOut 'WbPet.exe') -Force
 

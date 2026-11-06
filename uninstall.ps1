@@ -102,7 +102,7 @@ $files = @(
     'pet-ledger.js', 'pet-emotion.js', 'pet-event-writer.js',
     'panel-data.txt', 'panel-lines.txt', 'last-turn.txt',
     'pet-events.txt', 'pet-events.old.txt', 'pet-ledger.txt', 'pet-state.txt', 'pet-state.txt.tmp',
-    'pet-bus.port', 'pet-summary.txt', 'pet-history.txt', 'pet-budget.txt',
+    'pet-bus.port', 'pet-summary.txt', 'pet-history.txt', 'pet-budget.txt', 'pet-projects.txt',
     'turn-usage.log', 'panel.log', 'panel-err.log'
 )
 foreach ($f in $files) {
