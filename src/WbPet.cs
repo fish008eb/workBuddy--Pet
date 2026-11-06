@@ -2413,13 +2413,34 @@ namespace WbPet
             title.VerticalAlignment = VerticalAlignment.Center;
             head.Children.Add(title);
 
-            TextBlock close = MakeText("\u00D7", 15, CaptionFg);
-            close.HorizontalAlignment = HorizontalAlignment.Right;
-            close.VerticalAlignment = VerticalAlignment.Center;
-            close.Cursor = Cursors.Hand;
-            close.Padding = new Thickness(6, 0, 0, 0);
-            close.MouseLeftButtonUp += delegate { Close(); };
-            head.Children.Add(close);
+            // 关闭按钮必须是一个有背景的块，不能用裸 TextBlock：
+            // 一是 TextBlock 只有笔画像素能被命中，点偏一点就失效；
+            // 二是它得在 MouseDown 就处理掉并把 Handled 置位，否则冒泡到卡片的
+            // DragMove()——那是模态的，会吃掉后续的 MouseUp，按钮永远等不到点击。
+            Border closeBtn = new Border();
+            closeBtn.Width = 26;
+            closeBtn.Height = 24;
+            closeBtn.Background = Brushes.Transparent;
+            closeBtn.HorizontalAlignment = HorizontalAlignment.Right;
+            closeBtn.VerticalAlignment = VerticalAlignment.Center;
+            closeBtn.Margin = new Thickness(0, 0, -8, 0);
+            closeBtn.Cursor = Cursors.Hand;
+            closeBtn.ToolTip = "\u5173\u95ED\uFF08Esc\uFF09";
+
+            TextBlock closeGlyph = MakeText("\u00D7", 15, CaptionFg);
+            closeGlyph.HorizontalAlignment = HorizontalAlignment.Center;
+            closeGlyph.VerticalAlignment = VerticalAlignment.Center;
+            closeBtn.Child = closeGlyph;
+
+            closeBtn.MouseLeftButtonDown += delegate(object s, MouseButtonEventArgs e)
+            {
+                e.Handled = true;      // 别让卡片把它当成拖拽起点
+                Close();
+            };
+            closeBtn.MouseEnter += delegate { closeGlyph.Foreground = ValueFg; };
+            closeBtn.MouseLeave += delegate { closeGlyph.Foreground = CaptionFg; };
+
+            head.Children.Add(closeBtn);
             body.Children.Add(head);
 
             _subtitle = MakeText("", 10.5, CaptionFg);
