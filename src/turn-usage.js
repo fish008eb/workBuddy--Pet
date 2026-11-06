@@ -377,9 +377,9 @@ function projectLabel(encoded) {
   return out;
 }
 
-/** 日预算配置：pet-budget.txt 里一行 `daily=<积分>`，0 或缺失表示不启用 */
+/** 预算配置：pet-budget.txt 里 `daily=` / `monthly=` / `ctxlimit=`，0 或缺失表示不启用 */
 function readBudget() {
-  const out = { daily: 0 };
+  const out = { daily: 0, monthly: 0, ctxLimit: 200000 };
   let text;
   try {
     text = fs.readFileSync(BUDGET_FILE, 'utf8');
@@ -389,10 +389,12 @@ function readBudget() {
   for (const line of text.split('\n')) {
     const i = line.indexOf('=');
     if (i <= 0) { continue; }
-    if (line.slice(0, i).trim() === 'daily') {
-      const n = Number(line.slice(i + 1).trim());
-      if (Number.isFinite(n) && n > 0) { out.daily = n; }
-    }
+    const k = line.slice(0, i).trim();
+    const n = Number(line.slice(i + 1).trim());
+    if (!Number.isFinite(n) || n <= 0) { continue; }
+    if (k === 'daily') { out.daily = n; }
+    if (k === 'monthly') { out.monthly = n; }
+    if (k === 'ctxlimit') { out.ctxLimit = n; }
   }
   return out;
 }
@@ -421,8 +423,11 @@ function updateHistory(dayKey, dayCredit) {
 
   const prefix = dayKey.slice(0, 7) + '-';
   let month = 0;
-  for (const k of keys) { if (k.startsWith(prefix)) { month += map[k]; } }
-  return { month: month, map: map };
+  let days = 0;
+  for (const k of keys) {
+    if (k.startsWith(prefix)) { month += map[k]; days += 1; }
+  }
+  return { month: month, days: days, map: map };
 }
 
 /**
@@ -536,6 +541,37 @@ function writePanel(lines) {
   }
 }
 
+/**
+ * 月度消耗预测。
+ * 日均按「有记录的天数」算，不按自然日——周末不办公的话，按自然日会把均值摊薄，
+ * 预测就会乐观得离谱。天数不足时（比如月初第一天）预测本身没意义，
+ * 所以只在「按当前速度会超」时才给日期，否则直接说够用。
+ */
+function computeForecast(month, days, monthly, now) {
+  const out = { avg: 0, pct: 0, text: '', date: '' };
+  if (!(monthly > 0)) { return out; }
+
+  out.pct = (month / monthly) * 100;
+  out.avg = days > 0 ? month / days : 0;
+  if (month >= monthly) { out.text = '预算已用完'; return out; }
+
+  const d = new Date(now);
+  const daysInMonth = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+  const leftInMonth = daysInMonth - d.getDate() + 1;
+  const projected = month + out.avg * leftInMonth;
+
+  if (out.avg > 0 && projected > monthly) {
+    const need = Math.ceil((monthly - month) / out.avg);
+    const e = new Date(now);
+    e.setDate(e.getDate() + need);
+    out.date = String(e.getMonth() + 1).padStart(2, '0') + '-' + String(e.getDate()).padStart(2, '0');
+    out.text = '预计 ' + out.date + ' 见底';
+  } else {
+    out.text = '本月够用';
+  }
+  return out;
+}
+
 /** 结构化数据，供面板渲染成图标卡片（key=value，一行一项） */
 function writePanelData(turn, sess, today, extra) {
   const ex = extra || {};
@@ -559,6 +595,11 @@ function writePanelData(turn, sess, today, extra) {
     'budget=' + (budget > 0 ? budget.toFixed(0) : '0'),
     'budgetPct=' + budgetPct.toFixed(1),
     'monthCredit=' + (ex.month == null ? '0' : ex.month.toFixed(1)),
+    'monthBudget=' + (ex.budget && ex.budget.monthly > 0 ? ex.budget.monthly.toFixed(0) : '0'),
+    'monthPct=' + (num(ex.monthPct, 0)).toFixed(1),
+    'avgDaily=' + (num(ex.avgDaily, 0)).toFixed(1),
+    'days=' + num(ex.days, 0),
+    'forecast=' + (ex.forecast || ''),
     'projects=' + (today && today.projects ? today.projects.length : 0),
   ];
   try {
@@ -709,6 +750,55 @@ function readUiState() {
 }
 
 /**
+ * 预算提醒：月超支 > 月接近 > 日超支 > 日接近，每档每周期只报一次。
+ * 月预算优先，因为那才是额度本身；日预算只负责「今天别失控」。
+ * @returns {object|null} makeAlert 事件或 null
+ */
+function pickBudgetAlert(ledger, store, personaId, ctx) {
+  const budget = ctx.budget || {};
+  const dayKey = ledgerLib.dayKeyOf(Date.now());
+  const monthKey = dayKey.slice(0, 7);
+
+  // flags 里只保留本日 / 本月的预算标记，跨天跨月自动失效，避免无限增长
+  ledger.flags = ledger.flags.filter((f) => {
+    if (f.indexOf('budget') !== 0) { return true; }
+    return f.indexOf(dayKey) >= 0 || f.indexOf(monthKey) >= 0;
+  });
+
+  function fire(key, emotion, pri, flag, vars) {
+    if (ledger.flags.indexOf(flag) >= 0) { return null; }
+    ledger.flags.push(flag);
+    return emotionLib.makeAlert(store, personaId, key, emotion, pri, vars, ledger.totalTurns);
+  }
+
+  const monthly = num(budget.monthly, 0);
+  const month = num(ctx.month, 0);
+  if (monthly > 0) {
+    const mp = (month / monthly) * 100;
+    const vars = { month: fmt(month), mbudget: fmt(monthly), mpct: mp.toFixed(0) };
+    if (mp >= 100) {
+      return fire('budgetMonthOver', 'worried', 3, 'budgetMon-' + monthKey + '-over', vars);
+    }
+    if (mp >= 85) {
+      return fire('budgetMonthWarn', 'tender', 2, 'budgetMon-' + monthKey + '-warn', vars);
+    }
+  }
+
+  const daily = num(budget.daily, 0);
+  if (daily > 0 && ctx.today) {
+    const dp = (ctx.today.credit / daily) * 100;
+    const vars = { today: ctx.today.credit.toFixed(1), budget: daily.toFixed(0), pct: dp.toFixed(0) };
+    if (dp >= 100) {
+      return fire('budgetOver', 'worried', 3, 'budgetDay-' + dayKey + '-over', vars);
+    }
+    if (dp >= 80) {
+      return fire('budgetWarn', 'tender', 2, 'budgetDay-' + dayKey + '-warn', vars);
+    }
+  }
+  return null;
+}
+
+/**
  * 判定本轮情绪 → 追加事件 → 落盘 ledger。
  * @returns {{event: object|null, seq: number}}
  */
@@ -730,40 +820,14 @@ function emitEmotion(ctx) {
     turnId: ctx.turnId || '',
   });
 
-  // 预算规则插队：花超了比「缓存不错」更值得打断。每天各报一次，用日期做 flag，
-  // 顺手把往日的预算 flag 清掉，免得 flags 无限增长。
+  // 预算规则插队：花超了比「缓存不错」更值得打断。月预算优先于日预算。
   let ev = ev0;
-  const budget = ctx.budget || { daily: 0 };
-  if (budget.daily > 0 && ctx.today) {
-    const dayKey = ledgerLib.dayKeyOf(Date.now());
-    ledger.flags = ledger.flags.filter((f) => !f.startsWith('budget') || f.endsWith('-' + dayKey));
-
-    const overFlag = 'budgetOver-' + dayKey;
-    const warnFlag = 'budgetWarn-' + dayKey;
-    const pct = (ctx.today.credit / budget.daily) * 100;
-    let key = null;
-    if (pct >= 100 && !ledger.flags.includes(overFlag)) {
-      key = 'budgetOver';
-      ledger.flags.push(overFlag);
-      ledger.flags.push(warnFlag);
-    } else if (pct >= 80 && !ledger.flags.includes(warnFlag)) {
-      key = 'budgetWarn';
-      ledger.flags.push(warnFlag);
-    }
-    if (key) {
-      ev = emotionLib.makeAlert(
-        store, ui.persona, key,
-        key === 'budgetOver' ? 'worried' : 'tender',
-        key === 'budgetOver' ? 3 : 2,
-        {
-          today: ctx.today.credit.toFixed(1),
-          budget: budget.daily.toFixed(0),
-          pct: pct.toFixed(0),
-        },
-        ledger.totalTurns
-      );
-    }
-  }
+  const bAlert = pickBudgetAlert(ledger, store, ui.persona, {
+    budget: ctx.budget,
+    today: ctx.today,
+    month: ctx.month,
+  });
+  if (bAlert) { ev = bAlert; }
 
   let seq = ledger.lastEventSeq;
   if (ev) {
@@ -855,13 +919,24 @@ function main() {
       // 预算与历史：两者都不依赖会话日志，即使 today 拿不到也要落盘
       const budget = readBudget();
       let month = 0;
+      let days = 0;
       try {
         const hist = updateHistory(ledgerLib.dayKeyOf(Date.now()), today ? today.credit : 0);
         month = hist.month;
+        days = hist.days;
       } catch (e) {
         log('历史累计失败: ' + e.message);
       }
-      const extra = { budget: budget, month: month };
+      const fc = computeForecast(month, days, budget.monthly, Date.now());
+      const extra = {
+        budget: budget,
+        month: month,
+        days: days,
+        avgDaily: fc.avg,
+        monthPct: fc.pct,
+        forecast: fc.text,
+        exhaustDate: fc.date,
+      };
 
       // 分项目成本：用本轮增量累加到当前项目，不做全月扫描
       try {
@@ -888,7 +963,8 @@ function main() {
       try {
         const turnId = payload.generation_id || payload.session_id || '';
         const emo = emitEmotion({
-          turn: sum, sess: sess, today: today, turnId: turnId, budget: budget,
+          turn: sum, sess: sess, today: today, turnId: turnId,
+          budget: budget, month: month,
         });
         if (emo.event) {
           log('emotion=' + emo.event.emotion + ' key=' + emo.event.key + ' seq=' + emo.seq);

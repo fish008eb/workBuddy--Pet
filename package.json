@@ -1,7 +1,7 @@
 {
   "name": "wb-usage-pet",
-  "version": "1.4.0",
-  "description": "WorkBuddy desktop pet: live agent state, per-turn tokens, daily budget, a monthly per-project cost board and a click-to-return permission reminder.",
+  "version": "1.5.0",
+  "description": "WorkBuddy desktop pet: live agent state, per-turn tokens, daily/monthly budget with burn-down forecast, monthly per-project cost board with a 30-day trend, and a click-to-return permission reminder.",
   "private": true,
   "license": "MIT",
   "engines": {

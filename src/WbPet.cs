@@ -176,8 +176,13 @@ namespace WbPet
 
         // ---- budget (0 = not configured) ----
         private double _budgetDaily;
+        private double _budgetMonthly;
         private double _budgetPct;
+        private double _monthCredit;
+        private double _monthPct;
         private double _todayCredit;
+        private string _forecast = "";
+        private double _avgDaily;
         private CostWindow _costWindow;
 
         private static Brush MakeBrush(byte r, byte g, byte b)
@@ -546,6 +551,16 @@ namespace WbPet
             budgetRoot.Items.Add(MakeBudgetItem(budgetRoot, 500, "500 \u79EF\u5206"));
             menu.Items.Add(budgetRoot);
 
+            // 月预算：积分通常是按月给的额度，日预算只是「今天别失控」的粗线
+            MenuItem monthRoot = new MenuItem();
+            monthRoot.Header = "\u6708\u9884\u7B97";
+            monthRoot.Items.Add(MakeMonthItem(monthRoot, 0, "\u4E0D\u542F\u7528"));
+            monthRoot.Items.Add(MakeMonthItem(monthRoot, 500, "500 \u79EF\u5206"));
+            monthRoot.Items.Add(MakeMonthItem(monthRoot, 1000, "1000 \u79EF\u5206"));
+            monthRoot.Items.Add(MakeMonthItem(monthRoot, 2000, "2000 \u79EF\u5206"));
+            monthRoot.Items.Add(MakeMonthItem(monthRoot, 5000, "5000 \u79EF\u5206"));
+            menu.Items.Add(monthRoot);
+
             // skins
             List<string[]> skins = ReadCatalog();
             if (skins.Count > 0)
@@ -661,11 +676,21 @@ namespace WbPet
         // ---------- budget / summary ----------
         private MenuItem MakeBudgetItem(MenuItem root, double value, string label)
         {
+            return MakePresetItem(root, value, label, false);
+        }
+
+        private MenuItem MakeMonthItem(MenuItem root, double value, string label)
+        {
+            return MakePresetItem(root, value, label, true);
+        }
+
+        private MenuItem MakePresetItem(MenuItem root, double value, string label, bool monthly)
+        {
             MenuItem item = new MenuItem();
             item.Header = label;
             item.Tag = value;
             item.IsCheckable = true;
-            item.IsChecked = Math.Abs(_budgetDaily - value) < 0.01;
+            item.IsChecked = Math.Abs((monthly ? _budgetMonthly : _budgetDaily) - value) < 0.01;
             item.Click += delegate
             {
                 foreach (object o in root.Items)
@@ -674,15 +699,17 @@ namespace WbPet
                     if (mi != null) { mi.IsChecked = false; }
                 }
                 item.IsChecked = true;
-                SetBudget(value);
+                if (monthly) { SetBudget(value, _budgetDaily); }
+                else { SetBudget(_budgetDaily, value); }
             };
             return item;
         }
 
-        /** 读 pet-budget.txt 里的 daily；文件不存在或为 0 就是没配预算 */
+        /** 读 pet-budget.txt 里的 daily / monthly；缺失或为 0 就是不启用 */
         private void LoadBudget()
         {
             _budgetDaily = 0;
+            _budgetMonthly = 0;
             try
             {
                 if (!File.Exists(_budgetFile)) { return; }
@@ -690,25 +717,32 @@ namespace WbPet
                 {
                     int i = line.IndexOf('=');
                     if (i <= 0) { continue; }
-                    if (line.Substring(0, i).Trim() != "daily") { continue; }
+                    string k = line.Substring(0, i).Trim();
                     double v;
-                    if (double.TryParse(line.Substring(i + 1).Trim(), out v) && v > 0) { _budgetDaily = v; }
+                    if (!double.TryParse(line.Substring(i + 1).Trim(), out v) || v <= 0) { continue; }
+                    if (k == "daily") { _budgetDaily = v; }
+                    if (k == "monthly") { _budgetMonthly = v; }
                 }
             }
             catch (Exception) { }
         }
 
         /** 菜单选中后立刻落盘，下一轮 turn-usage.js 就会读到新阈值 */
-        private void SetBudget(double value)
+        private void SetBudget(double monthly, double daily)
         {
-            _budgetDaily = value;
+            _budgetDaily = daily;
+            _budgetMonthly = monthly;
             try
             {
-                File.WriteAllText(_budgetFile, "daily=" + value.ToString("0", CultureInfo.InvariantCulture) + "\n", new UTF8Encoding(false));
+                StringBuilder sb = new StringBuilder();
+                sb.Append("daily=").Append(daily.ToString("0", CultureInfo.InvariantCulture)).Append("\n");
+                sb.Append("monthly=").Append(monthly.ToString("0", CultureInfo.InvariantCulture)).Append("\n");
+                File.WriteAllText(_budgetFile, sb.ToString(), new UTF8Encoding(false));
             }
             catch (Exception) { }
             // 立刻按新额度重算百分比，别等下一次 2 秒轮询才变
             _budgetPct = _budgetDaily > 0 ? (_todayCredit / _budgetDaily) * 100 : 0;
+            _monthPct = _budgetMonthly > 0 ? (_monthCredit / _budgetMonthly) * 100 : 0;
             UpdateBudgetUi();
             ShowBubbleFor(3);
         }
@@ -2166,16 +2200,43 @@ namespace WbPet
                 {
                     _budgetDaily = bd;
                 }
+                double bm;
+                if (double.TryParse(GetValue(map, "monthBudget", "0"), NumberStyles.Float,
+                        CultureInfo.InvariantCulture, out bm) && bm > 0)
+                {
+                    _budgetMonthly = bm;
+                }
                 double tc;
                 if (double.TryParse(todayCredit, NumberStyles.Float, CultureInfo.InvariantCulture, out tc))
                 {
                     _todayCredit = tc;
                 }
+                double mc;
+                if (double.TryParse(GetValue(map, "monthCredit", "0"), NumberStyles.Float,
+                        CultureInfo.InvariantCulture, out mc))
+                {
+                    _monthCredit = mc;
+                }
+                double av;
+                if (double.TryParse(GetValue(map, "avgDaily", "0"), NumberStyles.Float,
+                        CultureInfo.InvariantCulture, out av))
+                {
+                    _avgDaily = av;
+                }
+                _forecast = GetValue(map, "forecast", "");
+
                 _budgetPct = _budgetDaily > 0 ? (_todayCredit / _budgetDaily) * 100 : 0;
-                if (_budgetDaily > 0)
+                _monthPct = _budgetMonthly > 0 ? (_monthCredit / _budgetMonthly) * 100 : 0;
+
+                if (_budgetMonthly > 0)
+                {
+                    _todaySessions.Text = sessions + " \u4F1A\u8BDD \u00B7 \u6708" + _monthPct.ToString("0") + "%";
+                }
+                else if (_budgetDaily > 0)
                 {
                     _todaySessions.Text = sessions + " \u4F1A\u8BDD \u00B7 " + _budgetPct.ToString("0") + "%";
                 }
+                _todayValue.Foreground = (_budgetDaily > 0 && _budgetPct >= 100) ? OverBrush : ValueBrush;
                 UpdateBudgetUi();
 
                 if (changed)
@@ -2223,24 +2284,43 @@ namespace WbPet
         /**
          * 预算条：3px 细线按百分比填充，配色分三档。
          * 卡片内容宽 288 - 左右内边距 30 = 258，填充宽度按这个算。
+         * 配了月预算就以月为准——日预算管的是「今天别失控」，月预算才是额度本身。
          */
         private void UpdateBudgetUi()
         {
             if (_budgetFill == null || _budgetTrack == null) { return; }
 
-            if (_budgetDaily <= 0)
+            bool useMonth = _budgetMonthly > 0;
+            bool any = useMonth || _budgetDaily > 0;
+            if (!any)
             {
                 _budgetFill.Width = 0;
                 _budgetTrack.ToolTip = null;
                 return;
             }
 
-            double pct = _budgetPct;
+            double pct = useMonth ? _monthPct : _budgetPct;
             double clamped = pct < 0 ? 0 : (pct > 100 ? 100 : pct);
             _budgetFill.Width = 258.0 * clamped / 100.0;
             _budgetFill.Background = pct >= 90 ? OverBrush : (pct >= 70 ? WarnBrush : OkBrush);
-            _budgetTrack.ToolTip = "\u65E5\u9884\u7B97 " + _todayCredit.ToString("0.#") + " / "
-                + _budgetDaily.ToString("0") + "\uFF08" + pct.ToString("0") + "%\uFF09";
+
+            StringBuilder tip = new StringBuilder();
+            if (_budgetDaily > 0)
+            {
+                tip.Append("\u4ECA\u65E5 ").Append(_todayCredit.ToString("0.#")).Append(" / ")
+                   .Append(_budgetDaily.ToString("0")).Append("\uFF08").Append(_budgetPct.ToString("0")).Append("%\uFF09");
+            }
+            if (_budgetMonthly > 0)
+            {
+                if (tip.Length > 0) { tip.Append("\n"); }
+                tip.Append("\u672C\u6708 ").Append(_monthCredit.ToString("0.#")).Append(" / ")
+                   .Append(_budgetMonthly.ToString("0")).Append("\uFF08").Append(_monthPct.ToString("0")).Append("%\uFF09");
+                if (_forecast.Length > 0)
+                {
+                    tip.Append("\n\u65E5\u5747 ").Append(_avgDaily.ToString("0.#")).Append(" \u00B7 ").Append(_forecast);
+                }
+            }
+            _budgetTrack.ToolTip = tip.ToString();
         }
 
         /** 面板侧的异常落盘。以前所有 catch 都是空的，出问题只能靠猜 */
@@ -2347,11 +2427,16 @@ namespace WbPet
         private const double CardWidth = 364;
         private const double InnerWidth = CardWidth - 32;
 
+        private readonly string _baseDir;
         private readonly string _projectsFile;
+        private readonly string _historyFile;
         private readonly string _dataFile;
         private readonly StackPanel _rows;
         private readonly TextBlock _subtitle;
+        private readonly TextBlock _monthLine;
         private readonly TextBlock _footer;
+        private readonly TextBlock _trendPeak;
+        private readonly Grid _trend;
         private DispatcherTimer _timer;
         private bool _placed;
 
@@ -2374,7 +2459,9 @@ namespace WbPet
 
         public CostWindow(string baseDir, string dataFile)
         {
+            _baseDir = baseDir;
             _projectsFile = Path.Combine(baseDir, "pet-projects.txt");
+            _historyFile = Path.Combine(baseDir, "pet-history.txt");
             _dataFile = dataFile;
 
             Width = CardWidth + ShadowPad * 2;
@@ -2444,8 +2531,14 @@ namespace WbPet
             body.Children.Add(head);
 
             _subtitle = MakeText("", 10.5, CaptionFg);
-            _subtitle.Margin = new Thickness(0, 5, 0, 10);
+            _subtitle.Margin = new Thickness(0, 5, 0, 3);
             body.Children.Add(_subtitle);
+
+            // 月度额度与预测：单独一行，比「合计」更关心的是「够不够用」
+            _monthLine = MakeText("", 10.5, MetaFg);
+            _monthLine.TextWrapping = TextWrapping.Wrap;
+            _monthLine.Margin = new Thickness(0, 0, 0, 10);
+            body.Children.Add(_monthLine);
 
             Border divider1 = new Border();
             divider1.Height = 1;
@@ -2455,6 +2548,28 @@ namespace WbPet
 
             _rows = new StackPanel();
             body.Children.Add(_rows);
+
+            // 近 30 天：柱高按当日积分，超日均 1.5 倍的柱子标红
+            StackPanel chartBlock = new StackPanel();
+            chartBlock.Margin = new Thickness(0, 0, 0, 6);
+
+            Grid chartHead = new Grid();
+            TextBlock trendCap = MakeText("\u8FD1 30 \u5929", 9.5, CaptionFg);
+            chartHead.Children.Add(trendCap);
+            _trendPeak = MakeText("", 9.5, CaptionFg);
+            _trendPeak.HorizontalAlignment = HorizontalAlignment.Right;
+            chartHead.Children.Add(_trendPeak);
+            chartBlock.Children.Add(chartHead);
+
+            _trend = new Grid();
+            _trend.Height = 40;
+            _trend.Margin = new Thickness(0, 6, 0, 0);
+            for (int i = 0; i < 30; i++)
+            {
+                _trend.ColumnDefinitions.Add(new ColumnDefinition());
+            }
+            chartBlock.Children.Add(_trend);
+            body.Children.Add(chartBlock);
 
             Border divider2 = new Border();
             divider2.Height = 1;
@@ -2566,34 +2681,135 @@ namespace WbPet
                         + total.ToString("0.#") + " \u79EF\u5206" + sinceNote
                     : "\u6682\u65E0\u6570\u636E";
 
-                // 今日与预算：复用 panel-data.txt，不重复计算
-                string todayLine = "";
-                bool overBudget = false;
+                // 今日 / 本月 / 预算：复用 panel-data.txt，不重复计算
+                Dictionary<string, string> pd = new Dictionary<string, string>();
                 if (File.Exists(_dataFile))
                 {
-                    double todayCredit = 0;
-                    double budget = 0;
                     foreach (string raw in File.ReadAllLines(_dataFile, Encoding.UTF8))
                     {
                         int eq = raw.IndexOf('=');
                         if (eq <= 0) { continue; }
-                        string k = raw.Substring(0, eq).Trim();
-                        string v = raw.Substring(eq + 1).Trim();
-                        if (k == "todayCredit") { double.TryParse(v, NumberStyles.Float, CultureInfo.InvariantCulture, out todayCredit); }
-                        if (k == "budget") { double.TryParse(v, NumberStyles.Float, CultureInfo.InvariantCulture, out budget); }
-                    }
-                    todayLine = "\u4ECA\u65E5 " + todayCredit.ToString("0.#") + " \u79EF\u5206";
-                    if (budget > 0)
-                    {
-                        double pct = todayCredit / budget * 100;
-                        overBudget = pct >= 100;
-                        todayLine += " \u00B7 \u9884\u7B97 " + pct.ToString("0") + "%";
+                        pd[raw.Substring(0, eq).Trim()] = raw.Substring(eq + 1).Trim();
                     }
                 }
+
+                double todayCredit = ParseD(pd, "todayCredit");
+                double budget = ParseD(pd, "budget");
+                double monthCredit = ParseD(pd, "monthCredit");
+                double monthBudget = ParseD(pd, "monthBudget");
+                double avgDaily = ParseD(pd, "avgDaily");
+                string forecast = "";
+                if (pd.ContainsKey("forecast")) { forecast = pd["forecast"]; }
+
+                if (monthBudget > 0)
+                {
+                    double mp = monthCredit / monthBudget * 100;
+                    _monthLine.Text = "\u672C\u6708 " + monthCredit.ToString("0.#") + " / "
+                        + monthBudget.ToString("0") + "\uFF08" + mp.ToString("0") + "%\uFF09 \u00B7 \u65E5\u5747 "
+                        + avgDaily.ToString("0.#") + (forecast.Length > 0 ? " \u00B7 " + forecast : "");
+                    _monthLine.Foreground = mp >= 100 ? OverFg : MetaFg;
+                }
+                else
+                {
+                    _monthLine.Text = "\u672C\u6708 " + monthCredit.ToString("0.#") + " \u79EF\u5206 \u00B7 \u672A\u8BBE\u6708\u9884\u7B97";
+                    _monthLine.Foreground = MetaFg;
+                }
+
+                bool overDaily = budget > 0 && todayCredit >= budget;
+                string todayLine = "\u4ECA\u65E5 " + todayCredit.ToString("0.#") + " \u79EF\u5206";
+                if (budget > 0)
+                {
+                    todayLine += " \u00B7 \u65E5\u9884\u7B97 " + (todayCredit / budget * 100).ToString("0") + "%";
+                }
                 _footer.Text = todayLine;
-                _footer.Foreground = overBudget ? OverFg : CaptionFg;
+                _footer.Foreground = overDaily ? OverFg : CaptionFg;
+
+                BuildTrend(avgDaily);
+            }
+            catch (Exception ex) { Log("CostWindow.Refresh", ex); }
+        }
+
+        private void Log(string where, Exception ex)
+        {
+            try
+            {
+                File.AppendAllText(Path.Combine(_baseDir, "panel-err.log"),
+                    DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + " [" + where + "] "
+                    + ex.GetType().Name + ": " + ex.Message + "\r\n", new UTF8Encoding(false));
             }
             catch (Exception) { }
+        }
+
+        private static double ParseD(Dictionary<string, string> map, string key)
+        {
+            string v;
+            double n;
+            if (map.TryGetValue(key, out v)
+                && double.TryParse(v, NumberStyles.Float, CultureInfo.InvariantCulture, out n))
+            {
+                return n;
+            }
+            return 0;
+        }
+
+        /** 近 30 天柱状：没记录的那天留一条 1px 底线，看得出「那天没干活」而不是没数据 */
+        private void BuildTrend(double avgDaily)
+        {
+            if (_trend == null) { return; }
+
+            Dictionary<string, double> hist = new Dictionary<string, double>();
+            try
+            {
+                if (File.Exists(_historyFile))
+                {
+                    foreach (string raw in File.ReadAllLines(_historyFile, Encoding.UTF8))
+                    {
+                        int eq = raw.IndexOf('=');
+                        if (eq <= 0) { continue; }
+                        double v;
+                        if (double.TryParse(raw.Substring(eq + 1).Trim(), NumberStyles.Float,
+                                CultureInfo.InvariantCulture, out v))
+                        {
+                            hist[raw.Substring(0, eq).Trim()] = v;
+                        }
+                    }
+                }
+            }
+            catch (Exception ex) { Log("CostWindow.trend", ex); }
+
+            DateTime today = DateTime.Today;
+            double[] vals = new double[30];
+            double max = 0.01;
+            for (int i = 0; i < 30; i++)
+            {
+                double v;
+                if (hist.TryGetValue(today.AddDays(i - 29).ToString("yyyy-MM-dd"), out v))
+                {
+                    vals[i] = v;
+                    if (v > max) { max = v; }
+                }
+            }
+
+            _trend.Children.Clear();
+            double threshold = avgDaily > 0 ? avgDaily * 1.5 : double.MaxValue;
+
+            for (int i = 0; i < 30; i++)
+            {
+                DateTime day = today.AddDays(i - 29);
+
+                Border bar = new Border();
+                bar.Margin = new Thickness(0.5, 0, 0.5, 0);
+                bar.VerticalAlignment = VerticalAlignment.Bottom;
+                bar.CornerRadius = new CornerRadius(1);
+                bar.Height = vals[i] > 0 ? Math.Max(1.5, vals[i] / max * 40.0) : 1.0;
+                bar.Background = vals[i] <= 0 ? TrackBg : (vals[i] > threshold ? OverFg : BarFg);
+                bar.ToolTip = day.ToString("MM-dd") + " \u00B7 "
+                    + (vals[i] > 0 ? vals[i].ToString("0.#") + " \u79EF\u5206" : "\u65E0\u8BB0\u5F55");
+                Grid.SetColumn(bar, i);
+                _trend.Children.Add(bar);
+            }
+
+            _trendPeak.Text = max > 0.011 ? "\u5CF0\u503C " + max.ToString("0.#") : "";
         }
 
         /** 一行 = 项目名 + 数值 + 占比条 + 元信息；占比条宽度按积分占比 */

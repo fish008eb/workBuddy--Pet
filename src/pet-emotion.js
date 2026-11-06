@@ -42,6 +42,10 @@ const FALLBACK_TEXTS = {
   noTranscript: '\u4f1a\u8bdd\u65e5\u5fd7\u7f3a\u5931',
   newDay: '\u65b0\u7684\u4e00\u5929',
   chatty: '\u2191{in} \u2193{out} \u00b7 \u7f13\u5b58 {cache}%',
+  budgetWarn: '\u4eca\u65e5 {today} / \u9884\u7b97 {budget}',
+  budgetOver: '\u5df2\u8d85\u65e5\u9884\u7b97 {today} / {budget}',
+  budgetMonthWarn: '\u672c\u6708 {month} / {mbudget}',
+  budgetMonthOver: '\u672c\u6708\u989d\u5ea6\u5df2\u7528\u5b8c',
 };
 
 function num(v, d) {
