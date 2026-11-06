@@ -377,9 +377,15 @@ function projectLabel(encoded) {
   return out;
 }
 
-/** 预算配置：pet-budget.txt 里 `daily=` / `monthly=` / `ctxlimit=`，0 或缺失表示不启用 */
+/**
+ * 预算配置：pet-budget.txt 里 `daily=` / `monthly=` / `ctxlimit=`，0 或缺失表示不启用。
+ *
+ * ctxlimit 默认 1000000，这是 deepseek-v4.1-flash 在 WorkBuddy 模型表里登记的
+ * contextWindow（各 provider 都是 1e6，openrouter 是 1048576）。
+ * 换用 200k 量级的模型时，在 pet-budget.txt 里写一行 `ctxlimit=200000` 就会重算。
+ */
 function readBudget() {
-  const out = { daily: 0, monthly: 0, ctxLimit: 200000 };
+  const out = { daily: 0, monthly: 0, ctxLimit: 1000000 };
   let text;
   try {
     text = fs.readFileSync(BUDGET_FILE, 'utf8');
@@ -600,6 +606,8 @@ function writePanelData(turn, sess, today, extra) {
     'avgDaily=' + (num(ex.avgDaily, 0)).toFixed(1),
     'days=' + num(ex.days, 0),
     'forecast=' + (ex.forecast || ''),
+    'ctxTokens=' + num(ex.ctxTokens, 0),
+    'ctxPct=' + num(ex.ctxPct, 0).toFixed(1),
     'projects=' + (today && today.projects ? today.projects.length : 0),
   ];
   try {
@@ -827,7 +835,17 @@ function emitEmotion(ctx) {
     today: ctx.today,
     month: ctx.month,
   });
-  if (bAlert) { ev = bAlert; }
+  if (bAlert) {
+    ev = bAlert;
+  } else {
+    // 上下文快满：同一会话只提醒一次，否则每轮都会念
+    const cp = num(ctx.ctxPct, 0);
+    if (cp >= 85 && ctx.sessionId && ctx.sessionId !== ledger.ctxWarnSession) {
+      ledger.ctxWarnSession = ctx.sessionId;
+      ev = emotionLib.makeAlert(store, ui.persona, 'ctxHigh', 'surprised', 2,
+        { pct: cp.toFixed(0) }, ledger.totalTurns);
+    }
+  }
 
   let seq = ledger.lastEventSeq;
   if (ev) {
@@ -927,6 +945,12 @@ function main() {
       } catch (e) {
         log('历史累计失败: ' + e.message);
       }
+      // 上下文占用：最后一次请求的 prompt_tokens 就是那一刻的上下文大小。
+      // 压缩（compact）之后它会掉回去，所以这是个实时值，不是累计值。
+      const lastUsage = res.all.length > 0 ? res.all[res.all.length - 1] : null;
+      const ctxTokens = lastUsage ? lastUsage.prompt : 0;
+      const ctxPct = budget.ctxLimit > 0 ? (ctxTokens / budget.ctxLimit) * 100 : 0;
+
       const fc = computeForecast(month, days, budget.monthly, Date.now());
       const extra = {
         budget: budget,
@@ -936,6 +960,8 @@ function main() {
         monthPct: fc.pct,
         forecast: fc.text,
         exhaustDate: fc.date,
+        ctxTokens: ctxTokens,
+        ctxPct: ctxPct,
       };
 
       // 分项目成本：用本轮增量累加到当前项目，不做全月扫描
@@ -965,6 +991,7 @@ function main() {
         const emo = emitEmotion({
           turn: sum, sess: sess, today: today, turnId: turnId,
           budget: budget, month: month,
+          ctxPct: ctxPct, sessionId: payload.session_id || '',
         });
         if (emo.event) {
           log('emotion=' + emo.event.emotion + ' key=' + emo.event.key + ' seq=' + emo.seq);

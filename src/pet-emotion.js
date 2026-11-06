@@ -46,6 +46,7 @@ const FALLBACK_TEXTS = {
   budgetOver: '\u5df2\u8d85\u65e5\u9884\u7b97 {today} / {budget}',
   budgetMonthWarn: '\u672c\u6708 {month} / {mbudget}',
   budgetMonthOver: '\u672c\u6708\u989d\u5ea6\u5df2\u7528\u5b8c',
+  ctxHigh: '\u4e0a\u4e0b\u6587 {pct}%',
 };
 
 function num(v, d) {

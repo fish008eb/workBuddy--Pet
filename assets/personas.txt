@@ -19,6 +19,7 @@
 #   personaSwitch 切换人格反馈  chatty 话痨模式的普通轮次
 #   budgetWarn 日预算用满 80%   budgetOver 日预算超支
 #   budgetMonthWarn 月预算用满 85%   budgetMonthOver 月预算超支
+#   ctxHigh 上下文占用超 85%（每会话一次）
 
 # ===== 人格定义 =====
 persona|cute|可爱治愈|#F9A8D4
@@ -53,6 +54,7 @@ line|cute|budgetOver|1|预算爆了！{today} 超过 {budget} 了|🚨
 line|cute|budgetOver|2|超支 {pct}%…我有点慌|😰
 line|cute|budgetMonthWarn|1|本月 {month} / {mbudget} 了，还剩 {mpct}% 外的空间|📅
 line|cute|budgetMonthOver|1|本月额度用光了…{month} / {mbudget}|🥲
+line|cute|ctxHigh|1|上下文 {pct}% 了，再塞就要整理啦|😵
 
 # ===== 毒舌吐槽 =====
 line|snark|firstMeet|1|哦，你又来烧 token 了|😐
@@ -79,6 +81,7 @@ line|snark|budgetWarn|1|{today}/{budget}，离超支不远了，悠着点|😒
 line|snark|budgetOver|1|超了。{today}，预算才 {budget}，牛|💀
 line|snark|budgetMonthWarn|1|本月 {month}/{mbudget}，你还有 {mpct}% 的余地…不多了|📉
 line|snark|budgetMonthOver|1|月度额度没了。{month}/{mbudget}，下个月见|🪦
+line|snark|ctxHigh|1|上下文 {pct}%，再塞就溢出来了|🫠
 
 # ===== 克制工程师 =====
 line|eng|firstMeet|1|首次启动，基线建立中。|🧭
@@ -104,3 +107,4 @@ line|eng|budgetWarn|1|今日 {today} / 预算 {budget}，已用 {pct}%。|📏
 line|eng|budgetOver|1|已超出日预算：{today} / {budget}（{pct}%）。|📕
 line|eng|budgetMonthWarn|1|本月已用 {month} / {mbudget}（{mpct}%）。|📆
 line|eng|budgetMonthOver|1|本月额度已耗尽：{month} / {mbudget}。|🛑
+line|eng|ctxHigh|1|上下文占用 {pct}%，建议新开会话。|📦

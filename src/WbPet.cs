@@ -183,6 +183,7 @@ namespace WbPet
         private double _todayCredit;
         private string _forecast = "";
         private double _avgDaily;
+        private double _ctxPct;
         private CostWindow _costWindow;
 
         private static Brush MakeBrush(byte r, byte g, byte b)
@@ -1651,7 +1652,23 @@ namespace WbPet
         private void UpdateStateLine(string state)
         {
             if (_stateLine == null) { return; }
-            if (state == "idle") { _stateLine.Visibility = Visibility.Collapsed; return; }
+            if (state == "idle")
+            {
+                // 闲着的时候这一行让给上下文占用——比「我在发呆」有用得多。
+                // 25% 就开始显示：这个数字的价值在于「看着它涨」，不在于越线才报
+                if (_ctxPct >= 25)
+                {
+                    _stateLine.Text = "\u25CF \u4E0A\u4E0B\u6587 " + _ctxPct.ToString("0") + "%"
+                        + (_ctxPct >= 85 ? " \u00B7 \u5EFA\u8BAE\u65B0\u5F00\u4F1A\u8BDD" : "");
+                    _stateLine.Foreground = _ctxPct >= 85 ? OverBrush : TitleBrush;
+                    _stateLine.Visibility = Visibility.Visible;
+                }
+                else
+                {
+                    _stateLine.Visibility = Visibility.Collapsed;
+                }
+                return;
+            }
 
             string label;
             switch (state)
@@ -2224,6 +2241,12 @@ namespace WbPet
                     _avgDaily = av;
                 }
                 _forecast = GetValue(map, "forecast", "");
+                double cx;
+                if (double.TryParse(GetValue(map, "ctxPct", "0"), NumberStyles.Float,
+                        CultureInfo.InvariantCulture, out cx))
+                {
+                    _ctxPct = cx;
+                }
 
                 _budgetPct = _budgetDaily > 0 ? (_todayCredit / _budgetDaily) * 100 : 0;
                 _monthPct = _budgetMonthly > 0 ? (_monthCredit / _budgetMonthly) * 100 : 0;

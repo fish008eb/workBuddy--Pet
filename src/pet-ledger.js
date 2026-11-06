@@ -36,6 +36,7 @@ function defaults() {
     sessionStartTs: 0,
     lastActivityTs: 0,
     lastEventSeq: 0,
+    ctxWarnSession: '',
     flags: [],
   };
 }
@@ -76,6 +77,7 @@ function readLedger(file) {
   base.sessionStartTs = num(map.sessionStartTs, 0);
   base.lastActivityTs = num(map.lastActivityTs, 0);
   base.lastEventSeq = num(map.lastEventSeq, 0);
+  base.ctxWarnSession = map.ctxWarnSession || '';
   base.flags = map.flags ? map.flags.split(',').filter(Boolean) : [];
 
   return { ledger: base, isNew: false };
@@ -97,6 +99,7 @@ function writeLedger(file, ledger) {
     'sessionStartTs=' + ledger.sessionStartTs,
     'lastActivityTs=' + ledger.lastActivityTs,
     'lastEventSeq=' + ledger.lastEventSeq,
+    'ctxWarnSession=' + (ledger.ctxWarnSession || ''),
     'flags=' + ledger.flags.join(','),
   ];
 
