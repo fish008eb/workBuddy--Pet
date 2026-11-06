@@ -1,10 +1,10 @@
 # WorkBuddy 用量宠物 · wb-usage-pet
 
-给 WorkBuddy 桌面版加一个**会说人话的用量看板**：屏幕右下角蹲着一只小角色，每轮对话结束它跳一下、弹个气泡，告诉你这一轮烧了多少 token、缓存命中了多少、花了多少积分。
+给 WorkBuddy 桌面版加一个**会说人话的用量看板**：屏幕右下角蹲着一只小角色，干活时它会告诉你正在跑什么工具，每轮对话结束它跳一下、弹个气泡，告诉你这一轮烧了多少 token、缓存命中了多少、花了多少积分、今天还剩多少预算。
 
 > WorkBuddy 桌面端底部只显示「共消耗 ◇x.xx 积分」，看不到 token 用量和缓存命中。本项目就是为了把这两个数字搬到眼前。
 
-*English: a desktop pet for WorkBuddy that shows per-turn tokens, cache-hit rate and credits in a floating speech bubble. Hooks-based, Windows only, zero runtime dependencies for the data pipeline.*
+*English: a desktop pet for WorkBuddy with live agent state, per-turn tokens, cache-hit rate, credits and a daily budget line. Hooks-based, Windows only, zero runtime dependencies for the data pipeline.*
 
 ```
         ┌─────────────────────────────┐
@@ -41,15 +41,17 @@
 ## 二、功能
 
 - **每轮结束自动播报**：Stop hook 精确卡在「回答刚结束」，气泡弹出 6 秒，角色跳一下
+- **实时状态**：思考 / 执行工具 / 并行子任务 / 整理上下文 / 出错 / 完成，一轮跑着的过程中就能看出它在干嘛
 - **悬停查看**：平时只蹲着一个角色，鼠标移上去才显示气泡，不挡屏幕
 - **四个核心指标**：输入 token、输出 token、缓存命中率、本轮积分
-- **今日汇总**：跨会话、跨工作空间，0 点自动归零
+- **今日汇总 + 日预算**：跨会话、跨工作空间，0 点自动归零；设了预算就有一条按比例填充的细线
+- **今日小结一键复制**：右键直接复制成一段能粘进日报/周报的文字
 - **动图形象**：支持 APNG 逐帧播放（默认 36 帧循环）
-- **情绪表达**：7 种情绪、3 套人格、3 档唠叨，按用量与时间自动开口
+- **情绪表达**：7 种情绪、3 套人格、3 档唠叨，按用量、预算与时间自动开口
 - **完成提示音**：每轮回答结束响一声（两音合成，可关，告警情绪换低沉音）
 - **12 套形象可换**：右键菜单即点即换，本地缓存秒切；也能换成自己的图片
 - **生命周期跟随**：打开 WorkBuddy 自动出现，完全退出后自动消失
-- **原生宿主可选**：编译成 `WbPet.exe` 后启动更快、无 PowerShell 进程（情绪功能也依赖它）
+- **原生宿主可选**：编译成 `WbPet.exe` 后启动更快、无 PowerShell 进程（情绪与实时状态都依赖它）
 
 ## 三、环境要求
 
@@ -72,7 +74,7 @@ powershell -ExecutionPolicy Bypass -File install.ps1
 
 1. 把 `src\` 的脚本和 `tools\` 的工具复制到 `%USERPROFILE%\.workbuddy\hooks`
 2. 下载并拆分默认形象（可用 `-Skin` 指定，`-SkipSprite` 跳过）
-3. 备份 `settings.json` 后注册两个 hook（`SessionStart` / `Stop`）
+3. 备份 `settings.json` 后注册 hook：2 个「干活」的脚本（`SessionStart` / `Stop`）+ 13 个「报状态」的轻量事件（`pet-hook.cmd`）
 4. 立即拉起面板
 
 可选参数：
@@ -103,10 +105,52 @@ powershell -ExecutionPolicy Bypass -File install.ps1 -BuildNative
 | 右键 → `提示音` | 开 / 关 / 试听 |
 | 右键 → `静音 1 小时` | 期间不弹任何情绪气泡 |
 | 右键 → `Refresh` | 立即刷新数据 |
+| 右键 → `复制今日小结` | 把今天的数据拼成一段话放进剪贴板 |
+| 右键 → `日预算` | 不启用 / 50 / 100 / 200 / 500 积分每日封顶 |
 | 右键 → `Hide for 10 min` | 藏起来 10 分钟 |
 | 右键 → `Exit` | 彻底退出 |
 | 每轮对话结束 | 气泡自动弹出 6 秒 + 角色动一下 + 一句情绪反馈（视触发规则） |
 | 深夜 / 久坐 / 长时间无操作 | 自己开口提醒，或进入打盹状态 |
+
+### 实时状态：它在干什么
+
+v1.3 之前宠物只会在**一轮结束后**报账，中间那十几分钟它一动不动。现在面板自己开了一个本地端口，WorkBuddy 每发一个 hook 事件就顺手告诉它一声，于是它能一直在场：
+
+| 事件 | 状态 | 你看到的样子 |
+|---|---|---|
+| `UserPromptSubmit` | 思考中 | 帧速放慢、轻微起伏 |
+| `PreToolUse` | 执行 `工具名` | 帧速加快、小幅抖动 |
+| `SubagentStart` | 并行子任务 | 持续起伏，幅度最大 |
+| `PreCompact` | 整理上下文 | 帧速最慢 |
+| `PostToolUseFailure` / `StopFailure` | 执行出错 | 横向抖动一下 |
+| `Stop` | 本轮完成 | 跳两下 |
+| `Notification` / `PermissionRequest` | 需要你看一眼 / 等待确认 | 挤压回弹，文案变红 |
+| `SessionEnd` | 会话结束 | 变暗减速 |
+
+**没有为每个状态准备美术资源**，所以状态是靠节奏、位移和一行文案表达的——帧速乘数、独立于一次性动作的连续起伏、以及气泡顶部那行 `● 执行 Bash · 12s`。0.62 倍是「忙」，1.95 倍是「慢」，这比多画 6 套动作便宜得多，也不会把形象资源锁死。
+
+状态带超时兜底：执行中 150 秒没新事件、完成 20 秒、出错 6 秒，就自动回落到安静状态。WorkBuddy 崩了或 hook 断了，宠物不会永远停在「执行中」。
+
+### 日预算与今日小结
+
+右键 `日预算` 选一个额度，会写进 `pet-budget.txt`。之后每轮结算时：
+
+- 气泡里「今日」下面那条分隔线变成进度条，70% 转黄、90% 转红
+- 越过 80% 和 100% 各说一句话（每天各一次，不刷屏）
+- 气泡右上角显示 `4 会话 · 144%`
+
+`复制今日小结` 不是简单拼数字，它会把项目分布也算进去：
+
+```
+WorkBuddy 小结 11-06
+4 个会话 · 3 个项目 · 86.1 积分 · 2513.7 万 token
+缓存命中 98.2% · 195 次模型调用
+项目分布：wb开发 2 会话 · 咸宁金融 1 会话
+日预算 86.1 / 60（144%）
+本轮：↑1604.5万 ↓5.5万 · 缓存 99.6% · 35.37 积分
+```
+
+项目名是从会话目录名还原的（`c-Users-fish0-Desktop-wb开发` → `wb开发`），还原不出来就保留原名，不猜。
 
 ## 六、数据是怎么算的
 
@@ -182,6 +226,13 @@ node tools/fetch-sprite.js "D:\pics\my-pet.png" --out .\assets\frames
 | 困倦 | 深夜、15 分钟无活动 | 降帧 + 半透明 |
 | 惊讶 | 单轮 token 或调用数异常 | 挤压回弹 |
 | 平静 | 默认，不说话 | 无 |
+
+预算规则单独算，并且**插队**——花超了比「缓存不错」更值得打断你。每天各触发一次，用 `预算等级-日期` 记在 ledger 的 flags 里，跨天自动失效：
+
+| 触发 | 条件 | 情绪 |
+|---|---|---|
+| `budgetWarn` | 今日积分 ≥ 日预算 80% | 心疼（缓慢呼吸） |
+| `budgetOver` | 今日积分 ≥ 日预算 100% | 担忧（横向抖动） |
 
 ### 3 套人格 × 3 档唠叨
 
@@ -264,9 +315,31 @@ powershell -ExecutionPolicy Bypass -File tools\make-package.ps1
 ┌─────────────────┐   读 transcript    ┌──────────────────┐               │
 │ turn-usage.js   │ ─────────────────► │ panel-data.txt   │ ──────────────┘
 └─────────────────┘                    └──────────────────┘
+        │
+        │ 12 个生命周期事件 → pet-hook.cmd → curl → 127.0.0.1:1787x
+        ▼
+┌─────────────────┐                    ┌──────────────────┐
+│ pet-hook.cmd    │ ─────────────────► │ 面板内置 TcpListener│  状态 → 动画
+└─────────────────┘                    └──────────────────┘
 ```
 
-开发过程中踩到的三个坑，都写进代码里了：
+### 为什么事件走 HTTP 而不是写文件
+
+试过两种通道，最后选了 HTTP：
+
+| 方案 | 单次开销 | 问题 |
+|---|---|---|
+| `node xxx.js` 每次起进程 | 50–100ms 冷启动 | 一轮几百次工具调用会把机器拖住 |
+| 写文件让面板轮询 | 极低 | 大 payload（Write 工具）每次写几十 KB，且做不了阻塞应答 |
+| **cmd + curl POST** | 与冷启动同量级（进程创建是主要成本） | 需要面板起服务 |
+
+实测三次都在 100ms 上下——**开销主要来自 hook 必须创建一个新进程，而不是传输方式**。既然传输本身几乎免费，就选能力最强的那个：HTTP 能带回执，以后要做「桌面上直接点 Allow/Deny」不用再换地基。
+
+服务端**没有用 `HttpListener`**：它走 HTTP.sys，非管理员账号必须先 `netsh http add urlacl` 才能 `Start()`，否则直接 AccessDenied。这里用裸 `TcpListener` 绑 `127.0.0.1`，不需要任何权限、不弹防火墙、也只收本机连接。端口从 17871 往后找，写进 `pet-bus.port` 给 cmd 读；面板退出时删掉这个文件，hook 看到文件没了就静默丢弃事件。
+
+自检：面板在跑的时候访问 `http://127.0.0.1:<端口>/state`，会返回当前状态、工具名和端口。
+
+开发过程中踩到的坑，都写进代码里了：
 
 1. **hook 进程会被 Job Object 连带清理**
    WorkBuddy 把 hook 放进 Windows Job Object，hook 结束后整棵进程树（含 `detached` 子进程）都会被干掉。所以启动器不能用普通 `spawn`，必须通过 **WMI `Win32_Process.Create`** 间接创建，让面板的父进程变成 `WmiPrvSE.exe`，彻底脱离 Job。
@@ -276,6 +349,12 @@ powershell -ExecutionPolicy Bypass -File tools\make-package.ps1
 
 3. **PowerShell 5.1 按 ANSI 读取无 BOM 的 .ps1**
    脚本里写中文会直接解析失败。所以 `panel-wpf.ps1`、`install.ps1`、`uninstall.ps1` 都**必须存成 UTF-8 with BOM**，改文件时别把 BOM 弄丢。
+
+4. **hook 环境的 PATH 不含 System32**
+   `pet-hook.cmd` 里写 `curl` 或 `more` 会直接「不是内部或外部命令」，而且因为 hook 是静默执行的，你只会看到宠物不动。所有系统工具一律用 `%SystemRoot%\System32\...` 绝对路径。
+
+5. **气泡是有高度的**
+   窗口固定 340×480，气泡底对齐往上长。加一行状态文案就可能把气泡顶出窗口上沿——所以预算条没有做成独立区块，而是复用了「今日」下面那条分隔线，只把 1px 加粗到 3px。
 
 ## 十一、目录结构
 
@@ -289,9 +368,10 @@ wb-usage-pet/
 │   ├── pet-emotion.js       情绪判定与文案渲染
 │   ├── pet-ledger.js        跨轮统计记忆（EMA / 里程碑 / 阈值）
 │   ├── pet-event-writer.js  情绪事件追加日志（seq + 轮转）
+│   ├── pet-hook.cmd         轻量事件转发：hook stdin → curl → 面板本地端口
 │   ├── start-panel.js       SessionStart hook：WMI 拉起面板（单实例）
 │   ├── panel-wpf.ps1        WPF 面板（PowerShell 宿主，兜底方案）
-│   ├── WbPet.cs             WPF 面板（C# 原生宿主，可选）
+│   ├── WbPet.cs             WPF 面板（C# 原生宿主，实时状态必需）
 │   ├── build-pet.cmd        编译 WbPet.exe
 │   ├── run-panel.vbs        无控制台窗口的启动器
 │   └── toast.ps1            Windows 通知通道（默认关闭时静默失败）
@@ -307,6 +387,20 @@ wb-usage-pet/
 │   └── emotion-design.md    情绪系统设计文档
 └── README.md
 ```
+
+运行时生成的文件（都在 `~/.workbuddy/hooks/`，不入库）：
+
+| 文件 | 写的人 | 内容 |
+|---|---|---|
+| `panel-data.txt` | turn-usage.js | 气泡渲染用的格式化数值 |
+| `pet-events.txt` | turn-usage.js | 情绪事件流（面板按 seq 消费） |
+| `pet-ledger.txt` | turn-usage.js | EMA / 里程碑 / 今日累计 |
+| `pet-history.txt` | turn-usage.js | 每日积分，`YYYY-MM-DD=积分`，用于月度累计 |
+| `pet-summary.txt` | turn-usage.js | 「复制今日小结」的原文 |
+| `pet-budget.txt` | 面板（右键菜单） | `daily=<积分>` |
+| `pet-bus.port` | 面板 | 事件端口，退出时删除 |
+| `pet-state.txt` | 面板 | 位置 / 人格 / 唠叨 / 已读事件偏移 |
+| `panel-err.log` | 面板 | 面板侧异常（以前是空的 catch，现在会落盘） |
 
 npm 快捷脚本（可选，装了 Node 就能用）：
 
@@ -338,6 +432,21 @@ npm run sprite -- "D:\pic\a.png"   # 拆帧
 **数字一直不动**
 说明 Stop hook 没触发。检查 `settings.json` 里 `hooks.Stop` 是否指向 `turn-usage.js`；再看 `turn-usage.log` 有没有新记录。注意 CLI 侧手写的 hook 需要在 `/hooks` 面板审核，桌面版不需要。
 
+**实时状态不生效（一直在打盹/不动）**
+按顺序查四件事：
+
+| 检查 | 命令 / 位置 | 期望 |
+|---|---|---|
+| 面板是不是原生宿主 | 任务管理器里有没有 `WbPet.exe` | 有。只有 `powershell.exe` 说明在用兜底宿主，实时状态不支持 |
+| 端口文件在不在 | `%USERPROFILE%\.workbuddy\hooks\pet-bus.port` | 里面是一个数字（默认 17871 起） |
+| 端口通不通 | 浏览器打开 `http://127.0.0.1:<那个数字>/state` | 返回 `state=idle` 之类 |
+| hook 注册了没 | `settings.json` 的 `hooks.PreToolUse` | 有一条指向 `pet-hook.cmd` |
+
+端口通了但状态不动，多半是 hook 没注册——hook 配置在**会话启动时**读取，改完要新开一个会话才生效。
+
+**气泡顶部被切掉**
+说明这轮的情绪文案太长，把气泡顶出了窗口。窗口高 480，是留了余量的；如果自己改过 `personas.txt` 加了很长的句子，把 `WbPet.cs` 里的 `Height` 调大即可。
+
 **面板出现后又消失**
 面板每 3 秒检查 WorkBuddy **主窗口**是否存在。Electron 关窗口后进程还留在托盘，所以判断依据是 `MainWindowHandle` 而不是进程数。如果你用多显示器把窗口移到了副屏，属于正常行为。
 
@@ -367,7 +476,10 @@ powershell -ExecutionPolicy Bypass -File uninstall.ps1
 - 读的是本地日志，**不是官方账单**；换机器不同步
 - 长上下文压缩（compact）后，历史轮次的 token 记录仍留在 jsonl 里，所以「会话」数字只会增不会减
 - 形象素材版权不属于本项目，仓库不附带
-- 情绪系统只在 C# 版（`WbPet.exe`）生效，脚本宿主版仅显示用量
+- 情绪系统与实时状态只在 C# 版（`WbPet.exe`）生效；脚本宿主版（`panel-wpf.ps1`）只显示用量
+- **实时状态依赖 `curl.exe`**（Win10 1803+ 自带）。更早的系统上 hook 会静默跳过，其余功能不受影响
+- **月度预算还没做**。`pet-history.txt` 已经在按天记积分，月度累计读它就能算，只是还没接到界面上；目前的预算只管「日」
+- 状态是**近似**的：`PreToolUse` 每次工具调用都会推一次，不带 `PostToolUse`，所以一次调用结束到下一次开始之间的空档仍显示「执行中」
 
 ## 十五、许可
 

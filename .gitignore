@@ -16,6 +16,10 @@ pet-events.old.txt
 pet-ledger.txt
 pet-state.txt
 pet-state.txt.tmp
+pet-bus.port
+pet-summary.txt
+pet-history.txt
+pet-budget.txt
 panel-err.log
 build.rsp
 *.log
