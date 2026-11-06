@@ -17,6 +17,7 @@
 #   longSession 连续工作      lateNight 深夜            nap 打盹
 #   napWake 打盹醒来          sitLong 久坐              newDay 跨天
 #   personaSwitch 切换人格反馈  chatty 话痨模式的普通轮次
+#   budgetWarn 日预算用满 80%   budgetOver 日预算超支
 
 # ===== 人格定义 =====
 persona|cute|可爱治愈|#F9A8D4
@@ -45,6 +46,10 @@ line|cute|sitLong|1|坐了一个半小时了，站起来两分钟|🧘
 line|cute|newDay|1|又是新的一天，今天从零开始|🌤️
 line|cute|personaSwitch|1|换好啦，现在是{name}|✨
 line|cute|chatty|1|这轮 ↑{in} ↓{out}，缓存 {cache}%|📊
+line|cute|budgetWarn|1|今天已经 {today} 了，预算 {budget} 快满了|😬
+line|cute|budgetWarn|2|预算用了 {pct}%，后面省着点喵|🫙
+line|cute|budgetOver|1|预算爆了！{today} 超过 {budget} 了|🚨
+line|cute|budgetOver|2|超支 {pct}%…我有点慌|😰
 
 # ===== 毒舌吐槽 =====
 line|snark|firstMeet|1|哦，你又来烧 token 了|😐
@@ -67,6 +72,8 @@ line|snark|sitLong|1|坐一个半小时了，站起来走走，别猝死|🚶
 line|snark|newDay|1|新的一天，继续烧|🌅
 line|snark|personaSwitch|1|行，现在我是{name}，别指望我温柔|😼
 line|snark|chatty|1|↑{in} ↓{out}，缓存 {cache}%，就这|📉
+line|snark|budgetWarn|1|{today}/{budget}，离超支不远了，悠着点|😒
+line|snark|budgetOver|1|超了。{today}，预算才 {budget}，牛|💀
 
 # ===== 克制工程师 =====
 line|eng|firstMeet|1|首次启动，基线建立中。|🧭
@@ -88,3 +95,5 @@ line|eng|sitLong|1|持续工作 90 分钟，建议短暂离开。|🚶
 line|eng|newDay|1|新的一天，计数归零。|📅
 line|eng|personaSwitch|1|人格切换为 {name}。|🔧
 line|eng|chatty|1|↑{in} ↓{out} · 缓存 {cache}%|📐
+line|eng|budgetWarn|1|今日 {today} / 预算 {budget}，已用 {pct}%。|📏
+line|eng|budgetOver|1|已超出日预算：{today} / {budget}（{pct}%）。|📕

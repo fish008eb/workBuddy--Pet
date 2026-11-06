@@ -253,9 +253,15 @@ function evaluateTurn(ctx) {
   return makeEvent(store, personaId, top);
 }
 
-/** 降级/异常事件的快捷构造（规则 10、11） */
-function makeAlert(store, personaId, key, emotion, pri) {
-  return makeEvent(store, personaId, { key: key, emotion: emotion || 'worried', pri: pri || 3 });
+/** 降级/异常事件的快捷构造（规则 10、11，以及预算超支） */
+function makeAlert(store, personaId, key, emotion, pri, vars, seed) {
+  return makeEvent(store, personaId, {
+    key: key,
+    emotion: emotion || 'worried',
+    pri: pri || 3,
+    vars: vars || {},
+    seed: seed || 0,
+  });
 }
 
 module.exports = {

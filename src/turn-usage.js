@@ -25,6 +25,9 @@ const MSG_FILE = path.join(HOOKS_DIR, 'last-turn.txt');
 const EVENT_FILE = path.join(HOOKS_DIR, 'pet-events.txt');
 const LEDGER_FILE = path.join(HOOKS_DIR, 'pet-ledger.txt');
 const STATE_FILE = path.join(HOOKS_DIR, 'pet-state.txt');
+const BUDGET_FILE = path.join(HOOKS_DIR, 'pet-budget.txt');
+const HISTORY_FILE = path.join(HOOKS_DIR, 'pet-history.txt');
+const SUMMARY_FILE = path.join(HOOKS_DIR, 'pet-summary.txt');
 
 /**
  * personas.txt 的位置有两种情况：
@@ -304,21 +307,24 @@ function computeToday() {
       if (!n.endsWith('.jsonl')) continue;
       const f = path.join(dir, n);
       try {
-        if (fs.statSync(f).mtimeMs >= cutoff) files.push(f);
+        if (fs.statSync(f).mtimeMs >= cutoff) files.push({ file: f, proj: d });
       } catch (_) { /* 跳过不可读文件 */ }
     }
   }
 
   const agg = {
     prompt: 0, completion: 0, hit: 0, miss: 0,
-    credit: 0, calls: 0, sessions: files.length,
+    credit: 0, calls: 0, sessions: files.length, projects: [],
   };
 
-  for (const f of files) {
+  const byProject = {};
+  for (const item of files) {
     let recs;
     try {
-      recs = readTranscript(f);
+      recs = readTranscript(item.file);
     } catch (_) { continue; }
+    let fileCredit = 0;
+    let fileUsable = false;
     for (const r of recs) {
       const ts = tsOf(r);
       if (!Number.isFinite(ts) || ts < cutoff) continue;
@@ -330,13 +336,94 @@ function computeToday() {
       agg.miss += u.miss;
       agg.credit += u.credit;
       agg.calls += 1;
+      fileCredit += u.credit;
+      fileUsable = true;
     }
+    if (!fileUsable) continue;
+    const key = item.proj;
+    if (!byProject[key]) { byProject[key] = { name: projectLabel(key), sessions: 0, credit: 0 }; }
+    byProject[key].sessions += 1;
+    byProject[key].credit += fileCredit;
   }
+
+  agg.projects = Object.keys(byProject)
+    .map((k) => byProject[k])
+    .sort((a, b) => b.credit - a.credit);
 
   const denom = agg.hit + agg.miss;
   agg.cacheRate = denom > 0 ? (agg.hit / denom) * 100 : null;
   return agg;
 }
+
+/**
+ * 把会话目录名还原成人能读的项目名。
+ * 目录名是工作区绝对路径的安全化结果：`c-Users-fish0-Desktop-wb开发`。
+ * 只按几个常见父目录标记切分，切不出来就保留原名——宁可难看，不要猜错。
+ */
+function projectLabel(encoded) {
+  if (!encoded) { return '未知项目'; }
+  let out = encoded;
+  const marks = ['-Desktop-', '-Documents-', '-Downloads-'];
+  for (const m of marks) {
+    const i = out.lastIndexOf(m);
+    if (i >= 0 && i + m.length < out.length) {
+      out = out.slice(i + m.length);
+      break;
+    }
+  }
+  // 有些目录名本身就是一串时间戳，太长会把「项目分布」那行撑爆
+  if (out.length > 22) { out = out.slice(0, 21) + '…'; }
+  return out;
+}
+
+/** 日预算配置：pet-budget.txt 里一行 `daily=<积分>`，0 或缺失表示不启用 */
+function readBudget() {
+  const out = { daily: 0 };
+  let text;
+  try {
+    text = fs.readFileSync(BUDGET_FILE, 'utf8');
+  } catch (_) {
+    return out;
+  }
+  for (const line of text.split('\n')) {
+    const i = line.indexOf('=');
+    if (i <= 0) { continue; }
+    if (line.slice(0, i).trim() === 'daily') {
+      const n = Number(line.slice(i + 1).trim());
+      if (Number.isFinite(n) && n > 0) { out.daily = n; }
+    }
+  }
+  return out;
+}
+
+/**
+ * 每日积分历史（pet-history.txt，`YYYY-MM-DD=积分`）。
+ * 用于月度累计和后续的趋势图；只增不减，因为今日总额本身是单调累积的。
+ */
+function updateHistory(dayKey, dayCredit) {
+  const map = {};
+  let text = '';
+  try { text = fs.readFileSync(HISTORY_FILE, 'utf8'); } catch (_) { /* 首次运行 */ }
+  for (const line of text.split('\n')) {
+    const i = line.indexOf('=');
+    if (i <= 0) { continue; }
+    const k = line.slice(0, i).trim();
+    const v = Number(line.slice(i + 1).trim());
+    if (/^\d{4}-\d{2}-\d{2}$/.test(k) && Number.isFinite(v)) { map[k] = v; }
+  }
+
+  if (dayCredit > (map[dayKey] || 0)) { map[dayKey] = dayCredit; }
+
+  const keys = Object.keys(map).sort().slice(-400);
+  const lines = keys.map((k) => k + '=' + map[k].toFixed(2));
+  try { fs.writeFileSync(HISTORY_FILE, lines.join('\n') + '\n', 'utf8'); } catch (_) { /* 忽略 */ }
+
+  const prefix = dayKey.slice(0, 7) + '-';
+  let month = 0;
+  for (const k of keys) { if (k.startsWith(prefix)) { month += map[k]; } }
+  return { month: month, map: map };
+}
+
 
 /** 悬浮窗显示的四行文本（中文在此生成，ps1 保持纯 ASCII） */
 function buildPanelLines(turn, sess, today) {
@@ -363,8 +450,12 @@ function writePanel(lines) {
 }
 
 /** 结构化数据，供面板渲染成图标卡片（key=value，一行一项） */
-function writePanelData(turn, sess, today) {
+function writePanelData(turn, sess, today, extra) {
+  const ex = extra || {};
   const rate = turn.cacheRate == null ? '—' : turn.cacheRate.toFixed(1);
+  const dayCredit = today ? today.credit : 0;
+  const budget = ex.budget ? ex.budget.daily : 0;
+  const budgetPct = budget > 0 ? Math.min(999, (dayCredit / budget) * 100) : 0;
   const kv = [
     'time=' + hhmm(),
     'turnIn=' + fmt(turn.prompt),
@@ -377,11 +468,55 @@ function writePanelData(turn, sess, today) {
     'todayIn=' + (today ? fmt(today.prompt) : '—'),
     'todayCredit=' + (today ? today.credit.toFixed(1) : '—'),
     'todaySessions=' + (today ? today.sessions : 0),
+    'todayCalls=' + (today ? today.calls : 0),
+    'budget=' + (budget > 0 ? budget.toFixed(0) : '0'),
+    'budgetPct=' + budgetPct.toFixed(1),
+    'monthCredit=' + (ex.month == null ? '0' : ex.month.toFixed(1)),
+    'projects=' + (today && today.projects ? today.projects.length : 0),
   ];
   try {
     fs.writeFileSync(path.join(HOOKS_DIR, 'panel-data.txt'), kv.join('\n') + '\n', 'utf8');
   } catch (e) {
     log('写面板结构数据失败: ' + e.message);
+  }
+}
+
+/**
+ * 今日小结：一段可以直接粘进周报/日报的纯文本。
+ * 面板右键「复制今日小结」读的就是这个文件——排版放在这里，C# 侧只管复制。
+ */
+function writeSummary(turn, sess, today, extra) {
+  const ex = extra || {};
+  const d = new Date();
+  const dayKey = `${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  const rate = (r) => (r == null ? '—' : r.toFixed(1) + '%');
+
+  const lines = [`WorkBuddy 小结 ${dayKey}`];
+  if (today) {
+    lines.push(
+      `${today.sessions} 个会话 · ${today.projects ? today.projects.length : 0} 个项目 · ` +
+      `${today.credit.toFixed(1)} 积分 · ${fmt(today.prompt)} token`
+    );
+    lines.push(`缓存命中 ${rate(today.cacheRate)} · ${today.calls} 次模型调用`);
+    if (today.projects && today.projects.length > 0) {
+      const top = today.projects.slice(0, 5)
+        .map((p) => `${p.name} ${p.sessions} 会话`)
+        .join(' · ');
+      lines.push(`项目分布：${top}`);
+    }
+  } else {
+    lines.push('今日汇总不可用（会话日志读取失败）');
+  }
+  if (ex.budget && ex.budget.daily > 0 && today) {
+    const pct = (today.credit / ex.budget.daily) * 100;
+    lines.push(`日预算 ${today.credit.toFixed(1)} / ${ex.budget.daily.toFixed(0)}（${pct.toFixed(0)}%）`);
+  }
+  lines.push(`本轮：↑${fmt(turn.prompt)} ↓${fmt(turn.completion)} · 缓存 ${rate(turn.cacheRate)} · ${turn.credit.toFixed(2)} 积分`);
+
+  try {
+    fs.writeFileSync(SUMMARY_FILE, lines.join('\n') + '\n', 'utf8');
+  } catch (e) {
+    log('写今日小结失败: ' + e.message);
   }
 }
 
@@ -496,7 +631,7 @@ function emitEmotion(ctx) {
   const read = ledgerLib.readLedger(LEDGER_FILE);
   const ledger = read.ledger;
 
-  const ev = emotionLib.evaluateTurn({
+  const ev0 = emotionLib.evaluateTurn({
     turn: ctx.turn,
     sess: ctx.sess,
     today: ctx.today,
@@ -507,6 +642,41 @@ function emitEmotion(ctx) {
     now: Date.now(),
     turnId: ctx.turnId || '',
   });
+
+  // 预算规则插队：花超了比「缓存不错」更值得打断。每天各报一次，用日期做 flag，
+  // 顺手把往日的预算 flag 清掉，免得 flags 无限增长。
+  let ev = ev0;
+  const budget = ctx.budget || { daily: 0 };
+  if (budget.daily > 0 && ctx.today) {
+    const dayKey = ledgerLib.dayKeyOf(Date.now());
+    ledger.flags = ledger.flags.filter((f) => !f.startsWith('budget') || f.endsWith('-' + dayKey));
+
+    const overFlag = 'budgetOver-' + dayKey;
+    const warnFlag = 'budgetWarn-' + dayKey;
+    const pct = (ctx.today.credit / budget.daily) * 100;
+    let key = null;
+    if (pct >= 100 && !ledger.flags.includes(overFlag)) {
+      key = 'budgetOver';
+      ledger.flags.push(overFlag);
+      ledger.flags.push(warnFlag);
+    } else if (pct >= 80 && !ledger.flags.includes(warnFlag)) {
+      key = 'budgetWarn';
+      ledger.flags.push(warnFlag);
+    }
+    if (key) {
+      ev = emotionLib.makeAlert(
+        store, ui.persona, key,
+        key === 'budgetOver' ? 'worried' : 'tender',
+        key === 'budgetOver' ? 3 : 2,
+        {
+          today: ctx.today.credit.toFixed(1),
+          budget: budget.daily.toFixed(0),
+          pct: pct.toFixed(0),
+        },
+        ledger.totalTurns
+      );
+    }
+  }
 
   let seq = ledger.lastEventSeq;
   if (ev) {
@@ -595,14 +765,28 @@ function main() {
           `today=${today ? today.prompt + '/' + today.credit.toFixed(2) + '/' + today.sessions + 'sess' : 'n/a'} ` +
           `todayMs=${todayMs}`);
 
+      // 预算与历史：两者都不依赖会话日志，即使 today 拿不到也要落盘
+      const budget = readBudget();
+      let month = 0;
+      try {
+        const hist = updateHistory(ledgerLib.dayKeyOf(Date.now()), today ? today.credit : 0);
+        month = hist.month;
+      } catch (e) {
+        log('历史累计失败: ' + e.message);
+      }
+      const extra = { budget: budget, month: month };
+
       emitStdout(msg);
       writePanel(buildPanelLines(sum, sess, today));
-      writePanelData(sum, sess, today);
+      writePanelData(sum, sess, today, extra);
+      writeSummary(sum, sess, today, extra);
 
-      // 情绪事件（阶段一规则 1-11 + 跨天），写成功才更新 ledger 的 seq
+      // 情绪事件（阶段一规则 1-11 + 跨天 + 预算超支），写成功才更新 ledger 的 seq
       try {
         const turnId = payload.generation_id || payload.session_id || '';
-        const emo = emitEmotion({ turn: sum, sess: sess, today: today, turnId: turnId });
+        const emo = emitEmotion({
+          turn: sum, sess: sess, today: today, turnId: turnId, budget: budget,
+        });
         if (emo.event) {
           log('emotion=' + emo.event.emotion + ' key=' + emo.event.key + ' seq=' + emo.seq);
         }
