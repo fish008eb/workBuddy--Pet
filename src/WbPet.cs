@@ -765,7 +765,7 @@ namespace WbPet
                 CostWindow win = new CostWindow(_baseDir, _dataFile);
                 win.Closed += delegate { _costWindow = null; };
                 // 先粗摆一个位置，CostWindow 在 Loaded 里按真实高度再钳一次
-                win.Left = Left - 376;
+                win.Left = Left - 400;
                 win.Top = Top + 40;
                 _costWindow = win;
                 win.Show();
@@ -2337,7 +2337,13 @@ namespace WbPet
         private static readonly Brush TitleFg = Frozen(0x8A, 0x93, 0xA8);
         private static readonly Brush TrackBg = Frozen(0x26, 0x2B, 0x36);
         private static readonly Brush BarFg = Frozen(0x5E, 0xEA, 0xD4);
+        private static readonly Brush MetaFg = Frozen(0x7C, 0x85, 0x98);
+        private static readonly Brush MutedBarFg = Frozen(0x5A, 0x60, 0x6E);
+        private static readonly Brush OverFg = Frozen(0xF8, 0x71, 0x71);
 
+        // 卡片不贴窗口边缘：投影要往外画 18px，贴边会被窗口边界裁掉，
+        // 看起来就像「底边被切了一刀」。
+        private const double ShadowPad = 12;
         private const double CardWidth = 364;
         private const double InnerWidth = CardWidth - 32;
 
@@ -2371,7 +2377,7 @@ namespace WbPet
             _projectsFile = Path.Combine(baseDir, "pet-projects.txt");
             _dataFile = dataFile;
 
-            Width = CardWidth;
+            Width = CardWidth + ShadowPad * 2;
             SizeToContent = SizeToContent.Height;
             WindowStyle = WindowStyle.None;
             AllowsTransparency = true;
@@ -2384,6 +2390,7 @@ namespace WbPet
             ShowActivated = true;
 
             Border card = new Border();
+            card.Margin = new Thickness(ShadowPad);
             card.Background = CardBg;
             card.BorderBrush = CardBorder;
             card.BorderThickness = new Thickness(0.5);
@@ -2403,12 +2410,14 @@ namespace WbPet
 
             Grid head = new Grid();
             TextBlock title = MakeText("\u9879\u76EE\u6210\u672C \u00B7 \u672C\u6708", 13, TitleFg);
+            title.VerticalAlignment = VerticalAlignment.Center;
             head.Children.Add(title);
 
-            TextBlock close = MakeText("\u00D7", 16, CaptionFg);
+            TextBlock close = MakeText("\u00D7", 15, CaptionFg);
             close.HorizontalAlignment = HorizontalAlignment.Right;
+            close.VerticalAlignment = VerticalAlignment.Center;
             close.Cursor = Cursors.Hand;
-            close.Margin = new Thickness(0, -2, 0, 0);
+            close.Padding = new Thickness(6, 0, 0, 0);
             close.MouseLeftButtonUp += delegate { Close(); };
             head.Children.Add(close);
             body.Children.Add(head);
@@ -2429,7 +2438,7 @@ namespace WbPet
             Border divider2 = new Border();
             divider2.Height = 1;
             divider2.Background = TrackBg;
-            divider2.Margin = new Thickness(0, 2, 0, 10);
+            divider2.Margin = new Thickness(0, 0, 0, 12);
             body.Children.Add(divider2);
 
             _footer = MakeText("", 10, CaptionFg);
@@ -2482,6 +2491,7 @@ namespace WbPet
             try
             {
                 string month = "";
+                string since = "";
                 List<string[]> rows = new List<string[]>();
                 double total = 0;
 
@@ -2490,6 +2500,7 @@ namespace WbPet
                     foreach (string raw in File.ReadAllLines(_projectsFile, Encoding.UTF8))
                     {
                         if (raw.StartsWith("month=")) { month = raw.Substring(6).Trim(); continue; }
+                        if (raw.StartsWith("since=")) { since = raw.Substring(6).Trim(); continue; }
                         if (!raw.StartsWith("p|")) { continue; }
                         string[] p = raw.Split('|');
                         if (p.Length < 5) { continue; }
@@ -2515,18 +2526,28 @@ namespace WbPet
                     }
                     if (rows.Count > 8)
                     {
-                        TextBlock more = MakeText("\u5176\u4F59 " + (rows.Count - 8) + " \u4E2A\u9879\u76EE\u5DF2\u5408\u5E76\u8BA1\u5165\u5408\u8BA1", 9.5, CaptionFg);
+                        TextBlock more = MakeText("\u5176\u4F59 " + (rows.Count - 8) + " \u4E2A\u9879\u76EE\u5DF2\u5408\u5E76\u8BA1\u5165\u5408\u8BA1", 10, MetaFg);
                         more.Margin = new Thickness(0, 0, 0, 8);
                         _rows.Children.Add(more);
                     }
                 }
 
+                // 分段记账是从「装上那天」开始的，不是月初。当它不等于 1 号时
+                // 必须说明，否则「本月合计」比「今日」还小，看着像算错了。
+                string sinceNote = "";
+                if (since.Length == 10 && since.Substring(8, 2) != "01")
+                {
+                    sinceNote = " \u00B7 \u81EA " + since.Substring(5) + " \u8D77";
+                }
+
                 _subtitle.Text = rows.Count > 0
-                    ? month + " \u00B7 " + rows.Count + " \u4E2A\u9879\u76EE \u00B7 \u5408\u8BA1 " + total.ToString("0.#") + " \u79EF\u5206"
+                    ? month + " \u00B7 " + rows.Count + " \u4E2A\u9879\u76EE \u00B7 \u5408\u8BA1 "
+                        + total.ToString("0.#") + " \u79EF\u5206" + sinceNote
                     : "\u6682\u65E0\u6570\u636E";
 
                 // 今日与预算：复用 panel-data.txt，不重复计算
                 string todayLine = "";
+                bool overBudget = false;
                 if (File.Exists(_dataFile))
                 {
                     double todayCredit = 0;
@@ -2543,10 +2564,13 @@ namespace WbPet
                     todayLine = "\u4ECA\u65E5 " + todayCredit.ToString("0.#") + " \u79EF\u5206";
                     if (budget > 0)
                     {
-                        todayLine += " \u00B7 \u9884\u7B97 " + (todayCredit / budget * 100).ToString("0") + "%";
+                        double pct = todayCredit / budget * 100;
+                        overBudget = pct >= 100;
+                        todayLine += " \u00B7 \u9884\u7B97 " + pct.ToString("0") + "%";
                     }
                 }
                 _footer.Text = todayLine;
+                _footer.Foreground = overBudget ? OverFg : CaptionFg;
             }
             catch (Exception) { }
         }
@@ -2555,6 +2579,9 @@ namespace WbPet
         private void AddRow(string[] p, double total)
         {
             string name = p[1];
+            // `~` 开头是派生行（记账前未分摊），去掉标记显示，并用灰条区分
+            bool derived = name.StartsWith("~");
+            if (derived) { name = name.Substring(1); }
             double credit = 0;
             double prompt = 0;
             int calls = 0;
@@ -2590,15 +2617,15 @@ namespace WbPet
             fill.Height = 3;
             fill.CornerRadius = new CornerRadius(1.5);
             fill.HorizontalAlignment = HorizontalAlignment.Left;
-            fill.Background = BarFg;
+            fill.Background = derived ? MutedBarFg : BarFg;
             fill.Width = InnerWidth * Math.Min(1.0, pct / 100.0);
             bar.Children.Add(fill);
             row.Children.Add(bar);
 
             TextBlock meta = MakeText(
                 calls + " \u8F6E \u00B7 " + FmtTokens(prompt) + " token \u00B7 " + pct.ToString("0") + "%",
-                9.5, CaptionFg);
-            meta.Margin = new Thickness(0, 4, 0, 0);
+                10, MetaFg);
+            meta.Margin = new Thickness(0, 5, 0, 0);
             row.Children.Add(meta);
 
             _rows.Children.Add(row);

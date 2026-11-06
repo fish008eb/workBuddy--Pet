@@ -435,24 +435,38 @@ function updateHistory(dayKey, dayCredit) {
 function updateProjectMonth(monthKey, label, turn) {
   const map = {};
   let stored = '';
+  let since = '';
   let text = '';
   try { text = fs.readFileSync(PROJECTS_FILE, 'utf8'); } catch (_) { /* 首次运行 */ }
 
+  const today = ledgerLib.dayKeyOf(Date.now());
+  const PSEUDO = '~\u8BB0\u8D26\u524D\u672A\u5206\u644A';
+  let pseudo = null;
+
   for (const line of text.split('\n')) {
     if (line.startsWith('month=')) { stored = line.slice(6).trim(); continue; }
+    if (line.startsWith('since=')) { since = line.slice(6).trim(); continue; }
     if (!line.startsWith('p|')) { continue; }
     const p = line.split('|');
     if (p.length < 5) { continue; }
-    map[p[1]] = {
+    const row = {
       credit: Number(p[2]) || 0,
       prompt: Number(p[3]) || 0,
       calls: Number(p[4]) || 0,
     };
+    // `~` 开头是派生行：它代表的钱已经在今日全量里，不能再参与累加
+    if (p[1] === PSEUDO) { pseudo = row; continue; }
+    map[p[1]] = row;
   }
 
   if (stored !== monthKey) {
     for (const k of Object.keys(map)) { delete map[k]; }
+    since = '';
+    pseudo = null;
   }
+
+  // 记账起点：分段累加不是从月初开始的，界面要能说清「为什么本月合计比今日还小」
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(since)) { since = today; }
 
   const key = String(label || '未知项目').replace(/\|/g, '/');
   if (!map[key]) { map[key] = { credit: 0, prompt: 0, calls: 0 }; }
@@ -466,7 +480,30 @@ function updateProjectMonth(monthKey, label, turn) {
     .sort((a, b) => b.credit - a.credit)
     .slice(0, 50);
 
-  const lines = ['month=' + monthKey];
+  // 把「今日全量」和「已分摊之和」的差额单列一行，否则首日会出现
+  // 本月合计 < 今日，看着像算错了。差额是记账之前那段，确实无法分摊到项目。
+  // 只在差额为正时重算；为零后保留原值，别让已经记进去的钱凭空消失。
+  const booked = rows.reduce((s, r) => s + r.credit, 0);
+  const gap = num(turn.todayCredit, 0) - booked;
+  if (gap > 0.05) {
+    const bookedPrompt = rows.reduce((s, r) => s + r.prompt, 0);
+    const bookedCalls = rows.reduce((s, r) => s + r.calls, 0);
+    pseudo = {
+      credit: gap,
+      prompt: Math.max(0, num(turn.todayPrompt, 0) - bookedPrompt),
+      calls: Math.max(0, num(turn.todayCalls, 0) - bookedCalls),
+    };
+  }
+  if (pseudo && pseudo.credit > 0) {
+    rows.push({
+      name: PSEUDO,
+      credit: pseudo.credit,
+      prompt: pseudo.prompt,
+      calls: pseudo.calls,
+    });
+  }
+
+  const lines = ['month=' + monthKey, 'since=' + since];
   for (const r of rows) {
     lines.push(`p|${r.name}|${r.credit.toFixed(2)}|${Math.round(r.prompt)}|${r.calls}`);
   }
@@ -832,7 +869,11 @@ function main() {
         updateProjectMonth(
           ledgerLib.dayKeyOf(Date.now()).slice(0, 7),
           projectLabel(projDir),
-          sum
+          Object.assign({}, sum, {
+            todayCredit: today ? today.credit : 0,
+            todayPrompt: today ? today.prompt : 0,
+            todayCalls: today ? today.calls : 0,
+          })
         );
       } catch (e) {
         log('项目成本累计失败: ' + e.message);
