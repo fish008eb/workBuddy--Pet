@@ -25,6 +25,8 @@ using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Media;
+using System.Net;
+using System.Net.Sockets;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
@@ -48,6 +50,9 @@ namespace WbPet
         private static readonly Brush TitleBrush = MakeBrush(0x8A, 0x93, 0xA8);
         private static readonly Brush TimeBrush = MakeBrush(0x5C, 0x64, 0x78);
         private static readonly Brush EmotionBrush = MakeBrush(0xE8, 0xEA, 0xF0);
+        private static readonly Brush OkBrush = MakeBrush(0x34, 0xD3, 0x99);
+        private static readonly Brush WarnBrush = MakeBrush(0xFB, 0xBF, 0x24);
+        private static readonly Brush OverBrush = MakeBrush(0xF8, 0x71, 0x71);
 
         private sealed class PersonaDef
         {
@@ -82,6 +87,9 @@ namespace WbPet
         private readonly string _stateFile;
         private readonly string _ledgerFile;
         private readonly string _personasFile;
+        private readonly string _summaryFile;
+        private readonly string _budgetFile;
+        private readonly string _portFile;
 
         private readonly List<BitmapImage> _frames = new List<BitmapImage>();
         private readonly List<int> _delays = new List<int>();
@@ -129,9 +137,13 @@ namespace WbPet
         private TextBlock _emotionText;
         private TextBlock _todayValue;
         private TextBlock _todaySessions;
+        private TextBlock _stateLine;
+        private Border _budgetTrack;
+        private Border _budgetFill;
         private TextBlock _footer;
         private ScaleTransform _scale;
         private TranslateTransform _shift;
+        private TranslateTransform _bob;
 
         private DispatcherTimer _frameTimer;
         private DispatcherTimer _dataTimer;
@@ -146,6 +158,22 @@ namespace WbPet
         private SoundPlayer _alertSound;
         private bool _soundOn = true;
         private string _lastEmotion = "calm";
+
+        // ---- live state (fed by the hook bus, read by the UI thread) ----
+        private TcpListener _bus;
+        private Thread _busThread;
+        private int _busPort;
+        private volatile string _busState = "idle";
+        private volatile string _busTool = "";
+        private DateTime _stateChangedAt = DateTime.MinValue;
+        private string _shownState = "idle";
+        private double _runSpeed = 1.0;
+        private DispatcherTimer _stateTimer;
+
+        // ---- budget (0 = not configured) ----
+        private double _budgetDaily;
+        private double _budgetPct;
+        private double _todayCredit;
 
         private static Brush MakeBrush(byte r, byte g, byte b)
         {
@@ -169,9 +197,14 @@ namespace WbPet
             _ledgerFile = Path.Combine(baseDir, "pet-ledger.txt");
             _personasFile = Path.Combine(_assetsDir, "personas.txt");
             _soundsDir = Path.Combine(_assetsDir, "sounds");
+            _summaryFile = Path.Combine(baseDir, "pet-summary.txt");
+            _budgetFile = Path.Combine(baseDir, "pet-budget.txt");
+            _portFile = Path.Combine(baseDir, "pet-bus.port");
 
+            // 480 而不是 448：加了「实时状态行」之后，长文案轮次里气泡会长高，
+            // 448 会把气泡顶出窗口上沿。窗口本身是透明的，多出的空白只是空气。
             Width = 340;
-            Height = 448;
+            Height = 480;
             WindowStyle = WindowStyle.None;
             AllowsTransparency = true;
             Background = Brushes.Transparent;
@@ -195,8 +228,11 @@ namespace WbPet
             BuildUi();
             LoadFrames(ResolveFramesDir(_loadedSkin));
             SeekEventsToEnd();
+            LoadBudget();
             StartTimers();
             UpdatePanel();
+            StartBus();
+            Closed += OnClosed;
         }
 
         // ---------- UI ----------
@@ -281,6 +317,15 @@ namespace WbPet
 
             inner.Children.Add(header);
 
+            // 实时状态行：只在有活动时出现，平时不占高度
+            _stateLine = new TextBlock();
+            _stateLine.FontSize = 10.5;
+            _stateLine.Foreground = TitleBrush;
+            _stateLine.Margin = new Thickness(0, 4, 0, 0);
+            _stateLine.Visibility = Visibility.Collapsed;
+            TextOptions.SetTextFormattingMode(_stateLine, TextFormattingMode.Display);
+            inner.Children.Add(_stateLine);
+
             // emotion line: the main visual of the bubble
             _emotionText = new TextBlock();
             _emotionText.FontSize = 15;
@@ -345,7 +390,26 @@ namespace WbPet
 
             inner.Children.Add(today);
 
-            inner.Children.Add(MakeDivider());
+            // 「今日」和「本轮指标」之间那条线，同时充当预算进度条。
+            // 只把分隔线从 1px 加粗到 3px，不再额外占版面——气泡高度是紧的，
+            // 多一块 30px 的区块在长文案轮次里会把气泡顶出窗口。
+            Grid budgetBar = new Grid();
+
+            _budgetTrack = new Border();
+            _budgetTrack.Height = 3;
+            _budgetTrack.CornerRadius = new CornerRadius(1.5);
+            _budgetTrack.Background = MakeBrush(0x26, 0x2B, 0x36);
+            budgetBar.Children.Add(_budgetTrack);
+
+            _budgetFill = new Border();
+            _budgetFill.Height = 3;
+            _budgetFill.CornerRadius = new CornerRadius(1.5);
+            _budgetFill.HorizontalAlignment = HorizontalAlignment.Left;
+            _budgetFill.Background = OkBrush;
+            _budgetFill.Width = 0;
+            budgetBar.Children.Add(_budgetFill);
+
+            inner.Children.Add(budgetBar);
 
             // this turn's metrics: one compact row, icon + value only
             Grid metrics = new Grid();
@@ -382,8 +446,10 @@ namespace WbPet
 
             _scale = new ScaleTransform(1, 1);
             _shift = new TranslateTransform(0, 0);
+            _bob = new TranslateTransform(0, 0);
             TransformGroup group = new TransformGroup();
             group.Children.Add(_scale);
+            group.Children.Add(_bob);
             group.Children.Add(_shift);
             _mascot.RenderTransform = group;
             _mascot.RenderTransformOrigin = new Point(0.5, 1);
@@ -452,6 +518,22 @@ namespace WbPet
             refresh.Header = "Refresh";
             refresh.Click += delegate { UpdatePanel(); };
             menu.Items.Add(refresh);
+
+            // 今日小结：直接进剪贴板，方便粘进日报/周报
+            MenuItem summary = new MenuItem();
+            summary.Header = "\u590D\u5236\u4ECA\u65E5\u5C0F\u7ED3";
+            summary.Click += delegate { CopySummary(); };
+            menu.Items.Add(summary);
+
+            // 日预算：直接写 pet-budget.txt，turn-usage.js 每轮读它判阈值
+            MenuItem budgetRoot = new MenuItem();
+            budgetRoot.Header = "\u65E5\u9884\u7B97";
+            budgetRoot.Items.Add(MakeBudgetItem(budgetRoot, 0, "\u4E0D\u542F\u7528"));
+            budgetRoot.Items.Add(MakeBudgetItem(budgetRoot, 50, "50 \u79EF\u5206"));
+            budgetRoot.Items.Add(MakeBudgetItem(budgetRoot, 100, "100 \u79EF\u5206"));
+            budgetRoot.Items.Add(MakeBudgetItem(budgetRoot, 200, "200 \u79EF\u5206"));
+            budgetRoot.Items.Add(MakeBudgetItem(budgetRoot, 500, "500 \u79EF\u5206"));
+            menu.Items.Add(budgetRoot);
 
             // skins
             List<string[]> skins = ReadCatalog();
@@ -563,6 +645,99 @@ namespace WbPet
             menu.Items.Add(exit);
 
             return menu;
+        }
+
+        // ---------- budget / summary ----------
+        private MenuItem MakeBudgetItem(MenuItem root, double value, string label)
+        {
+            MenuItem item = new MenuItem();
+            item.Header = label;
+            item.Tag = value;
+            item.IsCheckable = true;
+            item.IsChecked = Math.Abs(_budgetDaily - value) < 0.01;
+            item.Click += delegate
+            {
+                foreach (object o in root.Items)
+                {
+                    MenuItem mi = o as MenuItem;
+                    if (mi != null) { mi.IsChecked = false; }
+                }
+                item.IsChecked = true;
+                SetBudget(value);
+            };
+            return item;
+        }
+
+        /** 读 pet-budget.txt 里的 daily；文件不存在或为 0 就是没配预算 */
+        private void LoadBudget()
+        {
+            _budgetDaily = 0;
+            try
+            {
+                if (!File.Exists(_budgetFile)) { return; }
+                foreach (string line in File.ReadAllLines(_budgetFile))
+                {
+                    int i = line.IndexOf('=');
+                    if (i <= 0) { continue; }
+                    if (line.Substring(0, i).Trim() != "daily") { continue; }
+                    double v;
+                    if (double.TryParse(line.Substring(i + 1).Trim(), out v) && v > 0) { _budgetDaily = v; }
+                }
+            }
+            catch (Exception) { }
+        }
+
+        /** 菜单选中后立刻落盘，下一轮 turn-usage.js 就会读到新阈值 */
+        private void SetBudget(double value)
+        {
+            _budgetDaily = value;
+            try
+            {
+                File.WriteAllText(_budgetFile, "daily=" + value.ToString("0", CultureInfo.InvariantCulture) + "\n", new UTF8Encoding(false));
+            }
+            catch (Exception) { }
+            // 立刻按新额度重算百分比，别等下一次 2 秒轮询才变
+            _budgetPct = _budgetDaily > 0 ? (_todayCredit / _budgetDaily) * 100 : 0;
+            UpdateBudgetUi();
+            ShowBubbleFor(3);
+        }
+
+        /** 把 pet-summary.txt 整段复制走；没有就先跑一轮对话 */
+        private void CopySummary()
+        {
+            string text = "";
+            try
+            {
+                if (File.Exists(_summaryFile))
+                {
+                    text = File.ReadAllText(_summaryFile, Encoding.UTF8).Trim();
+                }
+            }
+            catch (Exception) { }
+
+            if (text.Length == 0)
+            {
+                _footer.Text = "\u8FD8\u6CA1\u6709\u5C0F\u7ED3\uFF0C\u5148\u8DD1\u4E00\u8F6E\u5BF9\u8BDD";
+                _footer.Visibility = Visibility.Visible;
+                ShowBubbleFor(4);
+                return;
+            }
+
+            for (int attempt = 0; attempt < 3; attempt++)
+            {
+                try
+                {
+                    Clipboard.SetText(text);
+                    _footer.Text = "\u4ECA\u65E5\u5C0F\u7ED3\u5DF2\u590D\u5236";
+                    _footer.Visibility = Visibility.Visible;
+                    ShowBubbleFor(4);
+                    Bounce(7, 1, 220);
+                    return;
+                }
+                catch (Exception) { Thread.Sleep(60); }
+            }
+            _footer.Text = "\u526A\u8D34\u677F\u88AB\u5360\u7528\uFF0C\u7A0D\u540E\u518D\u8BD5";
+            _footer.Visibility = Visibility.Visible;
         }
 
         private MenuItem MakeVerbosityItem(string id, string label)
@@ -1069,6 +1244,318 @@ namespace WbPet
             _bubble.Visibility = Visibility.Visible;
         }
 
+        // ---------- hook bus (live state) ----------
+        /**
+         * 面板自己起一个极简 HTTP 服务，hook 用 curl 把事件 POST 过来。
+         *
+         * 为什么是 TcpListener 而不是 HttpListener：后者走 HTTP.sys，非管理员
+         * 账号必须先 netsh 注册 urlacl 才能 Start()，否则直接 AccessDenied。
+         * 绑 127.0.0.1 的裸 socket 不需要任何权限，也不会弹防火墙。
+         *
+         * 端口写在 pet-bus.port，pet-hook.cmd 读它；端口占用时依次后移。
+         */
+        private void StartBus()
+        {
+            for (int port = 17871; port <= 17890; port++)
+            {
+                try
+                {
+                    TcpListener listener = new TcpListener(IPAddress.Loopback, port);
+                    listener.Start();
+                    _bus = listener;
+                    _busPort = port;
+                    break;
+                }
+                catch (Exception) { }
+            }
+            if (_bus == null) { return; }
+
+            try
+            {
+                File.WriteAllText(_portFile,
+                    _busPort.ToString(CultureInfo.InvariantCulture) + "\n", new UTF8Encoding(false));
+            }
+            catch (Exception) { }
+
+            _busThread = new Thread(BusLoop);
+            _busThread.IsBackground = true;
+            _busThread.Start();
+        }
+
+        private void BusLoop()
+        {
+            while (true)
+            {
+                TcpClient client;
+                try { client = _bus.AcceptTcpClient(); }
+                catch (Exception) { return; }   // listener 已停止
+                try
+                {
+                    ThreadPool.QueueUserWorkItem(delegate(object o) { HandleBusClient((TcpClient)o); }, client);
+                }
+                catch (Exception) { try { client.Close(); } catch (Exception) { } }
+            }
+        }
+
+        private void HandleBusClient(TcpClient client)
+        {
+            try
+            {
+                using (client)
+                {
+                    client.ReceiveTimeout = 3000;
+                    NetworkStream ns = client.GetStream();
+                    ns.ReadTimeout = 3000;
+                    ns.WriteTimeout = 3000;
+
+                    byte[] buf = new byte[8192];
+                    int len = 0;
+                    int headerEnd = -1;
+                    while (len < buf.Length)
+                    {
+                        int n = ns.Read(buf, len, buf.Length - len);
+                        if (n <= 0) { break; }
+                        len += n;
+                        headerEnd = IndexOfHeaderEnd(buf, len);
+                        if (headerEnd >= 0) { break; }
+                    }
+                    if (headerEnd < 0) { return; }
+
+                    string head = Encoding.ASCII.GetString(buf, 0, headerEnd);
+                    int contentLength = HeaderValue(head, "content-length");
+                    int bodyStart = headerEnd + 4;
+
+                    // 事件体只用于取 tool_name，截断到 4KB 就够；大 payload（写文件）不整包读
+                    StringBuilder body = new StringBuilder();
+                    int already = len - bodyStart;
+                    if (already > 0)
+                    {
+                        int take = already > 4096 ? 4096 : already;
+                        body.Append(Encoding.UTF8.GetString(buf, bodyStart, take));
+                    }
+                    int remain = contentLength - already;
+                    if (remain > 0)
+                    {
+                        int cap = remain > 4096 ? 4096 : remain;
+                        byte[] rest = new byte[cap];
+                        int got = 0;
+                        while (got < cap)
+                        {
+                            int n = ns.Read(rest, got, cap - got);
+                            if (n <= 0) { break; }
+                            got += n;
+                        }
+                        body.Append(Encoding.UTF8.GetString(rest, 0, got));
+                    }
+
+                    string path = "";
+                    Match line = Regex.Match(head, "^[A-Z]+\\s+(\\S+)");
+                    if (line.Success) { path = line.Groups[1].Value; }
+
+                    // GET /state：自检用，能直接看到面板现在认的是什么状态
+                    if (path.StartsWith("/state"))
+                    {
+                        long age = (long)(DateTime.Now - _stateChangedAt).TotalSeconds;
+                        string probe = "state=" + _shownState + "\ntool=" + _busTool + "\nage=" + age + "\nport=" + _busPort + "\n";
+                        byte[] pbody = Encoding.UTF8.GetBytes(probe);
+                        string phead = "HTTP/1.1 200 OK\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Length: "
+                            + pbody.Length + "\r\nConnection: close\r\n\r\n";
+                        byte[] pheadBytes = Encoding.ASCII.GetBytes(phead);
+                        ns.Write(pheadBytes, 0, pheadBytes.Length);
+                        ns.Write(pbody, 0, pbody.Length);
+                        return;
+                    }
+
+                    byte[] resp = Encoding.ASCII.GetBytes(
+                        "HTTP/1.1 204 No Content\r\nConnection: close\r\nContent-Length: 0\r\n\r\n");
+                    ns.Write(resp, 0, resp.Length);
+
+                    string bodyText = body.ToString();
+                    string eventName = QueryValue(path, "n");
+                    if (eventName.Length == 0) { eventName = MatchJson(bodyText, "hook_event_name"); }
+                    string tool = MatchJson(bodyText, "tool_name");
+
+                    ApplyHookEvent(eventName, tool);
+                }
+            }
+            catch (Exception) { }
+        }
+
+        /** hook 事件名 → 面板状态；未知事件直接忽略 */
+        private static string StateForEvent(string name)
+        {
+            switch (name)
+            {
+                case "UserPromptSubmit": return "thinking";
+                case "PreToolUse": return "working";
+                case "PostToolUse": return "working";
+                case "PostToolUseFailure": return "error";
+                case "StopFailure": return "error";
+                case "SubagentStart": return "juggling";
+                case "SubagentStop": return "working";
+                case "PreCompact": return "compacting";
+                case "PostCompact": return "thinking";
+                case "Notification": return "attention";
+                case "PermissionRequest": return "blocked";
+                case "Elicitation": return "blocked";
+                case "Stop": return "done";
+                case "SessionStart": return "idle";
+                case "SessionEnd": return "sleeping";
+                default: return "";
+            }
+        }
+
+        private void ApplyHookEvent(string eventName, string tool)
+        {
+            string state = StateForEvent(eventName);
+            if (state.Length == 0) { return; }
+            try
+            {
+                Dispatcher.BeginInvoke(new Action(delegate
+                {
+                    _busState = state;
+                    _busTool = tool;
+                    _stateChangedAt = DateTime.Now;
+                }));
+            }
+            catch (Exception) { }
+        }
+
+        private static int IndexOfHeaderEnd(byte[] buf, int len)
+        {
+            for (int i = 3; i < len; i++)
+            {
+                if (buf[i - 3] == 13 && buf[i - 2] == 10 && buf[i - 1] == 13 && buf[i] == 10) { return i - 3; }
+            }
+            return -1;
+        }
+
+        private static int HeaderValue(string head, string name)
+        {
+            Match m = Regex.Match(head, "(?im)^" + name + ":\\s*(\\d+)");
+            int v;
+            return m.Success && int.TryParse(m.Groups[1].Value, out v) ? v : 0;
+        }
+
+        private static string QueryValue(string path, string key)
+        {
+            Match m = Regex.Match(path, "[?&]" + key + "=([^&\\s]+)");
+            return m.Success ? Uri.UnescapeDataString(m.Groups[1].Value) : "";
+        }
+
+        /** 只取两个字段，不做完整 JSON 解析：C# 侧没有 JSON 库，也不值得为此引一个 */
+        private static string MatchJson(string text, string key)
+        {
+            if (text.Length == 0) { return ""; }
+            Match m = Regex.Match(text, "\"" + key + "\"\\s*:\\s*\"([^\"]{0,60})\"");
+            return m.Success ? m.Groups[1].Value : "";
+        }
+
+        /**
+         * 状态 → 运动语言。没有为每个状态准备美术资源，所以状态只能靠
+         * 节奏、位移和一行文案表达：
+         *   思考=慢、执行=快而微颠、并行=持续起伏、整理=最慢、出错=抖、
+         *   完成=跳一下、等待确认=挤压、会话结束=变暗。
+         */
+        private void RenderRunState()
+        {
+            DateTime now = DateTime.Now;
+            string state = _busState;
+
+            // 兜底：WorkBuddy 崩了或 hook 断了，别让它永远停在「执行中」
+            double age = (now - _stateChangedAt).TotalSeconds;
+            if ((state == "working" || state == "thinking" || state == "juggling") && age > 150) { state = "idle"; }
+            if (state == "compacting" && age > 240) { state = "idle"; }
+            if (state == "done" && age > 20) { state = "idle"; }
+            if (state == "error" && age > 6) { state = "idle"; }
+            if (state == "attention" && age > 30) { state = "idle"; }
+            if (state == "blocked" && age > 180) { state = "idle"; }
+            if (state == "sleeping" && age > 300) { state = "idle"; }
+
+            bool changed = state != _shownState;
+            _shownState = state;
+
+            switch (state)
+            {
+                case "working": _runSpeed = 0.62; break;
+                case "juggling": _runSpeed = 0.62; break;
+                case "thinking": _runSpeed = 1.55; break;
+                case "compacting": _runSpeed = 1.95; break;
+                case "blocked": _runSpeed = 1.20; break;
+                default: _runSpeed = 1.0; break;
+            }
+
+            if (changed)
+            {
+                SetBob(state);
+                if (state == "error") { Shake(); }
+                else if (state == "done") { Bounce(9, 2, 280); }
+                else if (state == "blocked") { Squash(); }
+            }
+
+            UpdateStateLine(state);
+        }
+
+        /** 连续起伏用独立的 TranslateTransform，避免和一次性动作抢同一属性 */
+        private void SetBob(string state)
+        {
+            double amp = 0;
+            int ms = 1000;
+            if (state == "thinking") { amp = 3.0; ms = 1500; }
+            else if (state == "working") { amp = 2.0; ms = 520; }
+            else if (state == "juggling") { amp = 8.0; ms = 360; }
+            else if (state == "blocked") { amp = 4.0; ms = 1100; }
+            else if (state == "compacting") { amp = 2.5; ms = 1700; }
+
+            if (amp <= 0)
+            {
+                _bob.BeginAnimation(TranslateTransform.YProperty, null);
+                _bob.Y = 0;
+                return;
+            }
+
+            DoubleAnimation anim = new DoubleAnimation();
+            anim.From = 0.0;
+            anim.To = -amp;
+            anim.Duration = new Duration(TimeSpan.FromMilliseconds(ms));
+            anim.AutoReverse = true;
+            anim.RepeatBehavior = RepeatBehavior.Forever;
+            anim.EasingFunction = new SineEase();
+            _bob.BeginAnimation(TranslateTransform.YProperty, anim);
+        }
+
+        private void UpdateStateLine(string state)
+        {
+            if (_stateLine == null) { return; }
+            if (state == "idle") { _stateLine.Visibility = Visibility.Collapsed; return; }
+
+            string label;
+            switch (state)
+            {
+                case "thinking": label = "\u601D\u8003\u4E2D"; break;
+                case "working": label = _busTool.Length > 0 ? "\u6267\u884C " + _busTool : "\u6267\u884C\u4E2D"; break;
+                case "juggling": label = "\u5E76\u884C\u5B50\u4EFB\u52A1"; break;
+                case "compacting": label = "\u6574\u7406\u4E0A\u4E0B\u6587"; break;
+                case "error": label = "\u6267\u884C\u51FA\u9519"; break;
+                case "done": label = "\u672C\u8F6E\u5B8C\u6210"; break;
+                case "blocked": label = "\u7B49\u5F85\u4F60\u786E\u8BA4"; break;
+                case "sleeping": label = "\u4F1A\u8BDD\u7ED3\u675F"; break;
+                case "attention": label = "\u9700\u8981\u4F60\u770B\u4E00\u773C"; break;
+                default: label = ""; break;
+            }
+            if (label.Length == 0) { _stateLine.Visibility = Visibility.Collapsed; return; }
+
+            long secs = (long)(DateTime.Now - _stateChangedAt).TotalSeconds;
+            if (secs < 0) { secs = 0; }
+            string text = "\u25CF " + label;
+            if (secs >= 3) { text += " \u00B7 " + secs + "s"; }
+
+            _stateLine.Text = text;
+            _stateLine.Foreground = (state == "error" || state == "blocked") ? OverBrush
+                : (state == "done" ? OkBrush : TitleBrush);
+            _stateLine.Visibility = Visibility.Visible;
+        }
+
         // ---------- motions ----------
         private void ResetTransforms()
         {
@@ -1306,6 +1793,13 @@ namespace WbPet
                     Left = x;
                     Top = y;
                 }
+
+                // 窗口高度从 448 涨到 480 后，老位置会把角色顶出屏幕下沿。
+                // 角色是底对齐的，所以只要保证整窗落在工作区内即可。
+                if (Top + Height > wa.Bottom) { Top = wa.Bottom - Height; }
+                if (Top < wa.Top) { Top = wa.Top; }
+                if (Left + Width > wa.Right) { Left = wa.Right - Width; }
+                if (Left < wa.Left) { Left = wa.Left; }
             }
             catch (Exception) { }
         }
@@ -1417,6 +1911,16 @@ namespace WbPet
             _clockTimer.Interval = TimeSpan.FromSeconds(30);
             _clockTimer.Tick += delegate { EvaluateAmbient(); };
             _clockTimer.Start();
+
+            // 状态刷新：500ms 足够让秒表和超时兜底跟上，又不至于空转
+            _stateTimer = new DispatcherTimer();
+            _stateTimer.Interval = TimeSpan.FromMilliseconds(500);
+            _stateTimer.Tick += delegate
+            {
+                try { RenderRunState(); }
+                catch (Exception ex) { LogError("RenderRunState", ex); }
+            };
+            _stateTimer.Start();
         }
 
         private void TryFlushPending()
@@ -1443,6 +1947,7 @@ namespace WbPet
 
             int d = 83;
             if (_idx < _delays.Count) { d = _delays[_idx]; }
+            if (_runSpeed > 0 && Math.Abs(_runSpeed - 1.0) > 0.001) { d = (int)(d * _runSpeed); }
             if (_sleepMode) { d = (int)(d * 2.2); }
             if (d < 40) { d = 40; }
             if (_sleepMode && d < 180) { d = 180; }
@@ -1518,6 +2023,26 @@ namespace WbPet
                 _todayValue.Text = todayCredit;
                 _todaySessions.Text = sessions + " \u4F1A\u8BDD";
 
+                // 预算百分比在这里本地算，不信文件里的百分比：
+                // 用户刚在菜单里改过预算时，panel-data.txt 还是上一轮的旧值。
+                double bd;
+                if (double.TryParse(GetValue(map, "budget", "0"), NumberStyles.Float,
+                        CultureInfo.InvariantCulture, out bd) && bd > 0)
+                {
+                    _budgetDaily = bd;
+                }
+                double tc;
+                if (double.TryParse(todayCredit, NumberStyles.Float, CultureInfo.InvariantCulture, out tc))
+                {
+                    _todayCredit = tc;
+                }
+                _budgetPct = _budgetDaily > 0 ? (_todayCredit / _budgetDaily) * 100 : 0;
+                if (_budgetDaily > 0)
+                {
+                    _todaySessions.Text = sessions + " \u4F1A\u8BDD \u00B7 " + _budgetPct.ToString("0") + "%";
+                }
+                UpdateBudgetUi();
+
                 if (changed)
                 {
                     // 每轮回答结束响一声；静音期或关闭音效时不响
@@ -1534,7 +2059,7 @@ namespace WbPet
                 }
                 _firstLoad = false;
             }
-            catch (Exception) { }
+            catch (Exception ex) { LogError("UpdatePanel", ex); }
 
             try
             {
@@ -1556,6 +2081,44 @@ namespace WbPet
                 {
                     _footer.Visibility = Visibility.Collapsed;
                 }
+            }
+            catch (Exception) { }
+        }
+
+        /**
+         * 预算条：3px 细线按百分比填充，配色分三档。
+         * 卡片内容宽 288 - 左右内边距 30 = 258，填充宽度按这个算。
+         */
+        private void UpdateBudgetUi()
+        {
+            if (_budgetFill == null || _budgetTrack == null) { return; }
+
+            if (_budgetDaily <= 0)
+            {
+                _budgetFill.Width = 0;
+                _budgetTrack.ToolTip = null;
+                return;
+            }
+
+            double pct = _budgetPct;
+            double clamped = pct < 0 ? 0 : (pct > 100 ? 100 : pct);
+            _budgetFill.Width = 258.0 * clamped / 100.0;
+            _budgetFill.Background = pct >= 90 ? OverBrush : (pct >= 70 ? WarnBrush : OkBrush);
+            _budgetTrack.ToolTip = "\u65E5\u9884\u7B97 " + _todayCredit.ToString("0.#") + " / "
+                + _budgetDaily.ToString("0") + "\uFF08" + pct.ToString("0") + "%\uFF09";
+        }
+
+        /** 面板侧的异常落盘。以前所有 catch 都是空的，出问题只能靠猜 */
+        private void LogError(string where, Exception ex)
+        {
+            try
+            {
+                string path = Path.Combine(_baseDir, "panel-err.log");
+                FileInfo fi = new FileInfo(path);
+                if (fi.Exists && fi.Length > 65536) { File.Delete(path); }
+                File.AppendAllText(path,
+                    DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + " [" + where + "] " +
+                    ex.GetType().Name + ": " + ex.Message + "\r\n", Encoding.UTF8);
             }
             catch (Exception) { }
         }
@@ -1586,6 +2149,21 @@ namespace WbPet
                 }
             }
             return null;
+        }
+
+        /** 退出时关掉监听并删掉端口文件：hook 看到文件没了就静默丢弃事件 */
+        private void OnClosed(object sender, EventArgs e)
+        {
+            try
+            {
+                if (_bus != null) { _bus.Stop(); }
+            }
+            catch (Exception) { }
+            try
+            {
+                if (File.Exists(_portFile)) { File.Delete(_portFile); }
+            }
+            catch (Exception) { }
         }
 
         private static bool WorkBuddyVisible()

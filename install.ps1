@@ -107,7 +107,7 @@ if ($SkipSprite) {
 }
 
 # ---------- 3. 注册 hooks ----------
-Write-Step '注册 hooks（SessionStart / Stop）'
+Write-Step '注册 hooks（会话生命周期 + 实时状态）'
 
 $stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
 $backup = "$settingsPath.bak-$stamp"
@@ -146,6 +146,55 @@ function Set-HookGroup {
 
 Set-HookGroup -hooksNode $hooksNode -event 'SessionStart' -scriptName 'start-panel.js' -timeout 10
 Set-HookGroup -hooksNode $hooksNode -event 'Stop' -scriptName 'turn-usage.js' -timeout 15
+
+# ---------- 3b. 实时状态事件（pet-hook.cmd → 面板本地端口） ----------
+# 和上面两个脚本并列存在：上面负责「重活」，这里负责「轻活」。
+# 逐个事件追加，保留用户自己写的其他 hook，只替换本项目的同名条目。
+$petHookPath = Join-Path $HooksDir 'pet-hook.cmd'
+$petEvents = @(
+    'SessionStart',
+    'UserPromptSubmit',
+    'PreToolUse',
+    'PostToolUseFailure',
+    'SubagentStart',
+    'SubagentStop',
+    'PreCompact',
+    'PostCompact',
+    'Notification',
+    'PermissionRequest',
+    'Stop',
+    'StopFailure',
+    'SessionEnd'
+)
+
+function Set-PetEventHook {
+    param($hooksNode, [string]$event, [string]$hookPath)
+
+    $groups = @()
+    if ($hooksNode.PSObject.Properties.Name -contains $event) {
+        foreach ($g in @($hooksNode.$event)) {
+            if (-not $g -or -not $g.hooks) { continue }
+            # 只清掉本项目自己写过的条目，别人配的 hook 原样保留
+            $kept = @($g.hooks | Where-Object { $_.command -and $_.command -notlike '*pet-hook.cmd*' })
+            if ($kept.Count -gt 0) {
+                $groups += [pscustomobject]@{ hooks = $kept }
+            }
+        }
+    }
+
+    # 面板没起来时 cmd 会立刻退出，超时给 3 秒足够
+    $command = '"' + $hookPath + '" ' + $event
+    $groups += [pscustomobject]@{
+        hooks = @([pscustomobject]@{ type = 'command'; command = $command; timeout = 3 })
+    }
+
+    $hooksNode | Add-Member -NotePropertyName $event -NotePropertyValue @($groups) -Force
+}
+
+foreach ($ev in $petEvents) {
+    Set-PetEventHook -hooksNode $hooksNode -event $ev -hookPath $petHookPath
+}
+Write-Ok ('已注册实时状态 hook：' + ($petEvents -join ' / '))
 
 $json = $cfg | ConvertTo-Json -Depth 20
 [System.IO.File]::WriteAllText($settingsPath, $json, (New-Object System.Text.UTF8Encoding($false)))

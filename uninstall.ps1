@@ -59,19 +59,31 @@ if (Test-Path $settingsPath) {
     $cfg = Get-Content -LiteralPath $settingsPath -Raw -Encoding UTF8 | ConvertFrom-Json
 
     if ($cfg.PSObject.Properties.Name -contains 'hooks') {
-        foreach ($event in @('SessionStart', 'Stop')) {
+        $allEvents = @(
+            'SessionStart', 'SessionEnd', 'UserPromptSubmit', 'PreToolUse',
+            'PostToolUseFailure', 'SubagentStart', 'SubagentStop',
+            'PreCompact', 'PostCompact', 'Notification', 'PermissionRequest',
+            'Stop', 'StopFailure'
+        )
+        foreach ($event in $allEvents) {
             if (-not ($cfg.hooks.PSObject.Properties.Name -contains $event)) { continue }
             $groups = @()
             foreach ($g in @($cfg.hooks.$event)) {
                 if (-not $g -or -not $g.hooks) { continue }
                 $kept = @($g.hooks | Where-Object {
-                    $_.command -and $_.command -notlike '*start-panel.js*' -and $_.command -notlike '*turn-usage.js*'
+                    $_.command -and $_.command -notlike '*start-panel.js*' `
+                        -and $_.command -notlike '*turn-usage.js*' `
+                        -and $_.command -notlike '*pet-hook.cmd*'
                 })
                 if ($kept.Count -gt 0) {
                     $groups += [pscustomobject]@{ hooks = $kept }
                 }
             }
-            $cfg.hooks | Add-Member -NotePropertyName $event -NotePropertyValue @($groups) -Force
+            if ($groups.Count -eq 0) {
+                $cfg.hooks.PSObject.Properties.Remove($event)
+            } else {
+                $cfg.hooks | Add-Member -NotePropertyName $event -NotePropertyValue @($groups) -Force
+            }
             Write-Ok "已清理 $event"
         }
 
@@ -86,10 +98,11 @@ if (Test-Path $settingsPath) {
 Write-Step "清理 $HooksDir"
 $files = @(
     'turn-usage.js', 'start-panel.js', 'panel-wpf.ps1', 'WbPet.cs', 'WbPet.exe',
-    'run-panel.vbs', 'run-panel.cmd', 'build-pet.cmd', 'toast.ps1',
+    'run-panel.vbs', 'run-panel.cmd', 'build-pet.cmd', 'toast.ps1', 'pet-hook.cmd',
     'pet-ledger.js', 'pet-emotion.js', 'pet-event-writer.js',
     'panel-data.txt', 'panel-lines.txt', 'last-turn.txt',
     'pet-events.txt', 'pet-events.old.txt', 'pet-ledger.txt', 'pet-state.txt', 'pet-state.txt.tmp',
+    'pet-bus.port', 'pet-summary.txt', 'pet-history.txt', 'pet-budget.txt',
     'turn-usage.log', 'panel.log', 'panel-err.log'
 )
 foreach ($f in $files) {
