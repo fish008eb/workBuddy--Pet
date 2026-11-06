@@ -28,6 +28,7 @@ const STATE_FILE = path.join(HOOKS_DIR, 'pet-state.txt');
 const BUDGET_FILE = path.join(HOOKS_DIR, 'pet-budget.txt');
 const HISTORY_FILE = path.join(HOOKS_DIR, 'pet-history.txt');
 const SUMMARY_FILE = path.join(HOOKS_DIR, 'pet-summary.txt');
+const PROJECTS_FILE = path.join(HOOKS_DIR, 'pet-projects.txt');
 
 /**
  * personas.txt 的位置有两种情况：
@@ -424,6 +425,55 @@ function updateHistory(dayKey, dayCredit) {
   return { month: month, map: map };
 }
 
+/**
+ * 本月分项目成本（pet-projects.txt）。
+ *
+ * 刻意**不做全月扫描**：每个项目的月内成本由每轮增量累加得到——本轮花的钱
+ * 必然发生在当前这个项目里，所以增量归属是准确的，而且不随月份增长变慢。
+ * 代价是首月从安装那天开始记，不回填历史。
+ */
+function updateProjectMonth(monthKey, label, turn) {
+  const map = {};
+  let stored = '';
+  let text = '';
+  try { text = fs.readFileSync(PROJECTS_FILE, 'utf8'); } catch (_) { /* 首次运行 */ }
+
+  for (const line of text.split('\n')) {
+    if (line.startsWith('month=')) { stored = line.slice(6).trim(); continue; }
+    if (!line.startsWith('p|')) { continue; }
+    const p = line.split('|');
+    if (p.length < 5) { continue; }
+    map[p[1]] = {
+      credit: Number(p[2]) || 0,
+      prompt: Number(p[3]) || 0,
+      calls: Number(p[4]) || 0,
+    };
+  }
+
+  if (stored !== monthKey) {
+    for (const k of Object.keys(map)) { delete map[k]; }
+  }
+
+  const key = String(label || '未知项目').replace(/\|/g, '/');
+  if (!map[key]) { map[key] = { credit: 0, prompt: 0, calls: 0 }; }
+  map[key].credit += num(turn.credit, 0);
+  map[key].prompt += num(turn.prompt, 0);
+  map[key].calls += num(turn.calls, 0);
+
+  const rows = Object.keys(map)
+    .map((k) => ({ name: k, credit: map[k].credit, prompt: map[k].prompt, calls: map[k].calls }))
+    .filter((r) => r.credit > 0 || r.calls > 0)
+    .sort((a, b) => b.credit - a.credit)
+    .slice(0, 50);
+
+  const lines = ['month=' + monthKey];
+  for (const r of rows) {
+    lines.push(`p|${r.name}|${r.credit.toFixed(2)}|${Math.round(r.prompt)}|${r.calls}`);
+  }
+  try { fs.writeFileSync(PROJECTS_FILE, lines.join('\n') + '\n', 'utf8'); } catch (_) { /* 忽略 */ }
+  return rows;
+}
+
 
 /** 悬浮窗显示的四行文本（中文在此生成，ps1 保持纯 ASCII） */
 function buildPanelLines(turn, sess, today) {
@@ -775,6 +825,18 @@ function main() {
         log('历史累计失败: ' + e.message);
       }
       const extra = { budget: budget, month: month };
+
+      // 分项目成本：用本轮增量累加到当前项目，不做全月扫描
+      try {
+        const projDir = path.basename(path.dirname(tp));
+        updateProjectMonth(
+          ledgerLib.dayKeyOf(Date.now()).slice(0, 7),
+          projectLabel(projDir),
+          sum
+        );
+      } catch (e) {
+        log('项目成本累计失败: ' + e.message);
+      }
 
       emitStdout(msg);
       writePanel(buildPanelLines(sum, sess, today));

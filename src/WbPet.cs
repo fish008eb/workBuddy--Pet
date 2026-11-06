@@ -27,6 +27,7 @@ using System.IO;
 using System.Media;
 using System.Net;
 using System.Net.Sockets;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
@@ -165,7 +166,10 @@ namespace WbPet
         private int _busPort;
         private volatile string _busState = "idle";
         private volatile string _busTool = "";
-        private DateTime _stateChangedAt = DateTime.MinValue;
+        private volatile string _busDetail = "";
+        // 用 Now 而不是 MinValue：MinValue 下 (now - t) 会是个天文数字，
+        // /state 里会打出一个 639 亿秒的 age，看着像 bug。
+        private DateTime _stateChangedAt = DateTime.Now;
         private string _shownState = "idle";
         private double _runSpeed = 1.0;
         private DispatcherTimer _stateTimer;
@@ -174,6 +178,7 @@ namespace WbPet
         private double _budgetDaily;
         private double _budgetPct;
         private double _todayCredit;
+        private CostWindow _costWindow;
 
         private static Brush MakeBrush(byte r, byte g, byte b)
         {
@@ -525,6 +530,12 @@ namespace WbPet
             summary.Click += delegate { CopySummary(); };
             menu.Items.Add(summary);
 
+            // 项目成本：本月各项目占比，独立窗口
+            MenuItem cost = new MenuItem();
+            cost.Header = "\u9879\u76EE\u6210\u672C\u2026";
+            cost.Click += delegate { OpenCostWindow(); };
+            menu.Items.Add(cost);
+
             // 日预算：直接写 pet-budget.txt，turn-usage.js 每轮读它判阈值
             MenuItem budgetRoot = new MenuItem();
             budgetRoot.Header = "\u65E5\u9884\u7B97";
@@ -738,6 +749,28 @@ namespace WbPet
             }
             _footer.Text = "\u526A\u8D34\u677F\u88AB\u5360\u7528\uFF0C\u7A0D\u540E\u518D\u8BD5";
             _footer.Visibility = Visibility.Visible;
+        }
+
+        /** 项目成本看板：单例，再点一次就刷到最新并置前 */
+        private void OpenCostWindow()
+        {
+            try
+            {
+                if (_costWindow != null)
+                {
+                    _costWindow.Refresh();
+                    _costWindow.Activate();
+                    return;
+                }
+                CostWindow win = new CostWindow(_baseDir, _dataFile);
+                win.Closed += delegate { _costWindow = null; };
+                // 先粗摆一个位置，CostWindow 在 Loaded 里按真实高度再钳一次
+                win.Left = Left - 376;
+                win.Top = Top + 40;
+                _costWindow = win;
+                win.Show();
+            }
+            catch (Exception ex) { LogError("OpenCostWindow", ex); }
         }
 
         private MenuItem MakeVerbosityItem(string id, string label)
@@ -1356,7 +1389,8 @@ namespace WbPet
                     if (path.StartsWith("/state"))
                     {
                         long age = (long)(DateTime.Now - _stateChangedAt).TotalSeconds;
-                        string probe = "state=" + _shownState + "\ntool=" + _busTool + "\nage=" + age + "\nport=" + _busPort + "\n";
+                        string probe = "state=" + _shownState + "\ntool=" + _busTool
+                            + "\ndetail=" + _busDetail + "\nage=" + age + "\nport=" + _busPort + "\n";
                         byte[] pbody = Encoding.UTF8.GetBytes(probe);
                         string phead = "HTTP/1.1 200 OK\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Length: "
                             + pbody.Length + "\r\nConnection: close\r\n\r\n";
@@ -1374,8 +1408,9 @@ namespace WbPet
                     string eventName = QueryValue(path, "n");
                     if (eventName.Length == 0) { eventName = MatchJson(bodyText, "hook_event_name"); }
                     string tool = MatchJson(bodyText, "tool_name");
+                    string detail = MatchCommand(bodyText);
 
-                    ApplyHookEvent(eventName, tool);
+                    ApplyHookEvent(eventName, tool, detail);
                 }
             }
             catch (Exception) { }
@@ -1405,7 +1440,7 @@ namespace WbPet
             }
         }
 
-        private void ApplyHookEvent(string eventName, string tool)
+        private void ApplyHookEvent(string eventName, string tool, string detail)
         {
             string state = StateForEvent(eventName);
             if (state.Length == 0) { return; }
@@ -1415,6 +1450,7 @@ namespace WbPet
                 {
                     _busState = state;
                     _busTool = tool;
+                    _busDetail = detail;
                     _stateChangedAt = DateTime.Now;
                 }));
             }
@@ -1452,6 +1488,22 @@ namespace WbPet
         }
 
         /**
+         * 从 tool_input 里捞一条命令行预览，用于「等待你确认」时告诉你在确认什么。
+         * 只认 `"command":"..."`，够覆盖 Bash / Shell；其他工具没有这个字段就返回空。
+         */
+        private static string MatchCommand(string text)
+        {
+            if (text.Length == 0) { return ""; }
+            Match m = Regex.Match(text, "\"command\"\\s*:\\s*\"((?:[^\"\\\\]|\\\\.){0,300})\"");
+            if (!m.Success) { return ""; }
+            string s = m.Groups[1].Value;
+            s = s.Replace("\\n", " ").Replace("\\r", " ").Replace("\\t", " ");
+            s = s.Replace("\\\"", "\"").Replace("\\\\", "\\").Trim();
+            if (s.Length > 70) { s = s.Substring(0, 69) + "\u2026"; }
+            return s;
+        }
+
+        /**
          * 状态 → 运动语言。没有为每个状态准备美术资源，所以状态只能靠
          * 节奏、位移和一行文案表达：
          *   思考=慢、执行=快而微颠、并行=持续起伏、整理=最慢、出错=抖、
@@ -1473,6 +1525,7 @@ namespace WbPet
             if (state == "sleeping" && age > 300) { state = "idle"; }
 
             bool changed = state != _shownState;
+            string prev = _shownState;
             _shownState = state;
 
             switch (state)
@@ -1487,13 +1540,50 @@ namespace WbPet
 
             if (changed)
             {
+                // 授权卡过期要主动收掉，否则已经点了「允许」气泡还挂在那里骗人
+                if (prev == "blocked" && state != "blocked" && _emotionText.Text.StartsWith("\u7B49\u5F85\u4F60\u786E\u8BA4"))
+                {
+                    _emotionText.Visibility = Visibility.Collapsed;
+                    _tempUntil = DateTime.MinValue;
+                    if (!IsPointerOverPanel()) { _bubble.Visibility = Visibility.Collapsed; }
+                }
+
                 SetBob(state);
                 if (state == "error") { Shake(); }
                 else if (state == "done") { Bounce(9, 2, 280); }
-                else if (state == "blocked") { Squash(); }
+                else if (state == "blocked") { ShowPendingCard(); }
             }
 
             UpdateStateLine(state);
+        }
+
+        /**
+         * 「轻提醒」：不接管审批，只负责让你知道有人在等你。
+         * 不用悬停就能看到气泡、配一声提示音、点一下把 WorkBuddy 切到前台。
+         */
+        private void ShowPendingCard()
+        {
+            string tool = _busTool.Length > 0 ? _busTool : "\u5DE5\u5177";
+            string line = "\u7B49\u5F85\u4F60\u786E\u8BA4\uFF1A" + tool;
+            if (_busDetail.Length > 0) { line += "\n" + _busDetail; }
+            line += "\n\u70B9\u6211\u5207\u56DE WorkBuddy";
+
+            _title.Text = PersonaName();
+            _emotionText.Text = line;
+            _emotionText.Visibility = Visibility.Visible;
+            ApplyAccent("#F87171");
+            ShowBubbleFor(25);
+            Bounce(9, 2, 260);
+
+            // 并行工具可能连着弹好几次授权，声音限流，气泡照常更新
+            if ((DateTime.Now - _lastPendingAt).TotalSeconds < 8) { return; }
+            _lastPendingAt = DateTime.Now;
+
+            if (_soundOn && DateTime.Now >= _quietUntil)
+            {
+                try { if (_alertSound != null) { _alertSound.Play(); } }
+                catch (Exception) { }
+            }
         }
 
         /** 连续起伏用独立的 TranslateTransform，避免和一次性动作抢同一属性 */
@@ -1969,14 +2059,22 @@ namespace WbPet
 
         private Point _dragOrigin;
         private bool _dragging;
+        private bool _movedOnDrag;
+        private DateTime _lastFocusAt = DateTime.MinValue;
+        private DateTime _lastPendingAt = DateTime.MinValue;
 
         private void OnMascotMouseDown(object sender, MouseButtonEventArgs e)
         {
             if (e.ButtonState != MouseButtonState.Pressed) { return; }
             _dragOrigin = e.GetPosition(this);
+            double startLeft = Left;
+            double startTop = Top;
             _dragging = true;
+            _movedOnDrag = false;
             try { DragMove(); }
             catch (Exception) { }
+            // DragMove 是模态的，返回时窗口已经落位：位移超过 3px 算拖动，否则算点击
+            _movedOnDrag = Math.Abs(Left - startLeft) > 3 || Math.Abs(Top - startTop) > 3;
         }
 
         private void OnMascotMouseUp(object sender, MouseButtonEventArgs e)
@@ -1984,6 +2082,43 @@ namespace WbPet
             if (!_dragging) { return; }
             _dragging = false;
             SaveState();
+
+            if (_movedOnDrag) { return; }
+            if (_shownState != "blocked") { return; }
+            if ((DateTime.Now - _lastFocusAt).TotalSeconds < 2) { return; }
+            _lastFocusAt = DateTime.Now;
+            FocusWorkBuddy();
+        }
+
+        [DllImport("user32.dll")]
+        private static extern bool SetForegroundWindow(IntPtr hWnd);
+
+        [DllImport("user32.dll")]
+        private static extern bool ShowWindow(IntPtr hWnd, int cmd);
+
+        [DllImport("user32.dll")]
+        private static extern bool IsIconic(IntPtr hWnd);
+
+        /**
+         * 把 WorkBuddy 主窗口拉到前面。
+         * Windows 有前台锁定，SetForegroundWindow 可能被拒——那就退一步先
+         * ShowWindow(SW_RESTORE) 激活它，用户在任务栏能直接点。全部失败也不报错。
+         */
+        private void FocusWorkBuddy()
+        {
+            try
+            {
+                foreach (Process p in Process.GetProcessesByName("WorkBuddy"))
+                {
+                    IntPtr h = p.MainWindowHandle;
+                    if (h == IntPtr.Zero) { continue; }
+                    if (IsIconic(h)) { ShowWindow(h, 9); }
+                    else { ShowWindow(h, 5); }
+                    SetForegroundWindow(h);
+                    return;
+                }
+            }
+            catch (Exception) { }
         }
 
         // ---------- data ----------
@@ -2185,11 +2320,337 @@ namespace WbPet
         }
     }
 
+    /**
+     * 项目成本看板：本月各项目的积分占比。
+     *
+     * 数据来自 pet-projects.txt —— turn-usage.js 每轮把「本轮增量」累加到
+     * 当前项目上，所以打开是瞬时的，也不会因为月份变长而变慢。
+     * 代价是首月从安装那天开始记，不回填历史。
+     */
+    public class CostWindow : Window
+    {
+        private static readonly Brush CardBg = Frozen(0x1B, 0x1E, 0x26);
+        private static readonly Brush CardBorder = Frozen(0x33, 0x39, 0x49);
+        private static readonly Brush ValueFg = Frozen(0xED, 0xEF, 0xF5);
+        private static readonly Brush MutedFg = Frozen(0x98, 0xA0, 0xB4);
+        private static readonly Brush CaptionFg = Frozen(0x6B, 0x73, 0x85);
+        private static readonly Brush TitleFg = Frozen(0x8A, 0x93, 0xA8);
+        private static readonly Brush TrackBg = Frozen(0x26, 0x2B, 0x36);
+        private static readonly Brush BarFg = Frozen(0x5E, 0xEA, 0xD4);
+
+        private const double CardWidth = 364;
+        private const double InnerWidth = CardWidth - 32;
+
+        private readonly string _projectsFile;
+        private readonly string _dataFile;
+        private readonly StackPanel _rows;
+        private readonly TextBlock _subtitle;
+        private readonly TextBlock _footer;
+        private DispatcherTimer _timer;
+        private bool _placed;
+
+        private static Brush Frozen(byte r, byte g, byte b)
+        {
+            SolidColorBrush brush = new SolidColorBrush(Color.FromRgb(r, g, b));
+            brush.Freeze();
+            return brush;
+        }
+
+        private static TextBlock MakeText(string text, double size, Brush fg)
+        {
+            TextBlock tb = new TextBlock();
+            tb.Text = text;
+            tb.FontSize = size;
+            tb.Foreground = fg;
+            TextOptions.SetTextFormattingMode(tb, TextFormattingMode.Display);
+            return tb;
+        }
+
+        public CostWindow(string baseDir, string dataFile)
+        {
+            _projectsFile = Path.Combine(baseDir, "pet-projects.txt");
+            _dataFile = dataFile;
+
+            Width = CardWidth;
+            SizeToContent = SizeToContent.Height;
+            WindowStyle = WindowStyle.None;
+            AllowsTransparency = true;
+            Background = Brushes.Transparent;
+            Topmost = true;
+            ShowInTaskbar = false;
+            ResizeMode = ResizeMode.NoResize;
+            UseLayoutRounding = true;
+            FontFamily = new FontFamily("Microsoft YaHei UI");
+            ShowActivated = true;
+
+            Border card = new Border();
+            card.Background = CardBg;
+            card.BorderBrush = CardBorder;
+            card.BorderThickness = new Thickness(0.5);
+            card.CornerRadius = new CornerRadius(16);
+            card.Padding = new Thickness(16, 14, 16, 14);
+            card.MouseLeftButtonDown += delegate { try { DragMove(); } catch (Exception) { } };
+
+            DropShadowEffect shadow = new DropShadowEffect();
+            shadow.BlurRadius = 18;
+            shadow.ShadowDepth = 5;
+            shadow.Direction = 270;
+            shadow.Opacity = 0.35;
+            shadow.Color = Colors.Black;
+            card.Effect = shadow;
+
+            StackPanel body = new StackPanel();
+
+            Grid head = new Grid();
+            TextBlock title = MakeText("\u9879\u76EE\u6210\u672C \u00B7 \u672C\u6708", 13, TitleFg);
+            head.Children.Add(title);
+
+            TextBlock close = MakeText("\u00D7", 16, CaptionFg);
+            close.HorizontalAlignment = HorizontalAlignment.Right;
+            close.Cursor = Cursors.Hand;
+            close.Margin = new Thickness(0, -2, 0, 0);
+            close.MouseLeftButtonUp += delegate { Close(); };
+            head.Children.Add(close);
+            body.Children.Add(head);
+
+            _subtitle = MakeText("", 10.5, CaptionFg);
+            _subtitle.Margin = new Thickness(0, 5, 0, 10);
+            body.Children.Add(_subtitle);
+
+            Border divider1 = new Border();
+            divider1.Height = 1;
+            divider1.Background = TrackBg;
+            divider1.Margin = new Thickness(0, 0, 0, 12);
+            body.Children.Add(divider1);
+
+            _rows = new StackPanel();
+            body.Children.Add(_rows);
+
+            Border divider2 = new Border();
+            divider2.Height = 1;
+            divider2.Background = TrackBg;
+            divider2.Margin = new Thickness(0, 2, 0, 10);
+            body.Children.Add(divider2);
+
+            _footer = MakeText("", 10, CaptionFg);
+            _footer.TextWrapping = TextWrapping.Wrap;
+            body.Children.Add(_footer);
+
+            card.Child = body;
+            Content = card;
+
+            Loaded += OnLoaded;
+            Closed += delegate { if (_timer != null) { _timer.Stop(); } };
+            KeyDown += delegate(object s, KeyEventArgs e) { if (e.Key == Key.Escape) { Close(); } };
+
+            Refresh();
+        }
+
+        /** 首次布局完成后才知道真实高度，这时再摆位置，靠宠物左侧 */
+        private void OnLoaded(object sender, RoutedEventArgs e)
+        {
+            if (_placed) { return; }
+            _placed = true;
+            try
+            {
+                Rect wa = SystemParameters.WorkArea;
+                double left = Left - Width - 12;
+                if (left < wa.Left + 8) { left = wa.Left + 8; }
+                double top = Top;
+                if (top + ActualHeight > wa.Bottom) { top = wa.Bottom - ActualHeight - 8; }
+                if (top < wa.Top + 8) { top = wa.Top + 8; }
+                Left = left;
+                Top = top;
+            }
+            catch (Exception) { }
+
+            _timer = new DispatcherTimer();
+            _timer.Interval = TimeSpan.FromSeconds(2);
+            _timer.Tick += delegate { Refresh(); };
+            _timer.Start();
+        }
+
+        private static string FmtTokens(double n)
+        {
+            if (n >= 1e8) { return (n / 1e8).ToString("0.00") + "\u4EBF"; }
+            if (n >= 1e4) { return (n / 1e4).ToString("0.0") + "\u4E07"; }
+            return Math.Round(n).ToString("0");
+        }
+
+        public void Refresh()
+        {
+            try
+            {
+                string month = "";
+                List<string[]> rows = new List<string[]>();
+                double total = 0;
+
+                if (File.Exists(_projectsFile))
+                {
+                    foreach (string raw in File.ReadAllLines(_projectsFile, Encoding.UTF8))
+                    {
+                        if (raw.StartsWith("month=")) { month = raw.Substring(6).Trim(); continue; }
+                        if (!raw.StartsWith("p|")) { continue; }
+                        string[] p = raw.Split('|');
+                        if (p.Length < 5) { continue; }
+                        rows.Add(p);
+                        double c;
+                        if (double.TryParse(p[2], NumberStyles.Float, CultureInfo.InvariantCulture, out c)) { total += c; }
+                    }
+                }
+
+                _rows.Children.Clear();
+
+                if (rows.Count == 0)
+                {
+                    TextBlock empty = MakeText("\u672C\u6708\u8FD8\u6CA1\u6709\u8BB0\u5F55\uFF0C\u8DD1\u4E00\u8F6E\u5BF9\u8BDD\u5C31\u6709\u4E86", 11.5, CaptionFg);
+                    empty.Margin = new Thickness(0, 4, 0, 8);
+                    _rows.Children.Add(empty);
+                }
+                else
+                {
+                    for (int i = 0; i < rows.Count && i < 8; i++)
+                    {
+                        AddRow(rows[i], total);
+                    }
+                    if (rows.Count > 8)
+                    {
+                        TextBlock more = MakeText("\u5176\u4F59 " + (rows.Count - 8) + " \u4E2A\u9879\u76EE\u5DF2\u5408\u5E76\u8BA1\u5165\u5408\u8BA1", 9.5, CaptionFg);
+                        more.Margin = new Thickness(0, 0, 0, 8);
+                        _rows.Children.Add(more);
+                    }
+                }
+
+                _subtitle.Text = rows.Count > 0
+                    ? month + " \u00B7 " + rows.Count + " \u4E2A\u9879\u76EE \u00B7 \u5408\u8BA1 " + total.ToString("0.#") + " \u79EF\u5206"
+                    : "\u6682\u65E0\u6570\u636E";
+
+                // 今日与预算：复用 panel-data.txt，不重复计算
+                string todayLine = "";
+                if (File.Exists(_dataFile))
+                {
+                    double todayCredit = 0;
+                    double budget = 0;
+                    foreach (string raw in File.ReadAllLines(_dataFile, Encoding.UTF8))
+                    {
+                        int eq = raw.IndexOf('=');
+                        if (eq <= 0) { continue; }
+                        string k = raw.Substring(0, eq).Trim();
+                        string v = raw.Substring(eq + 1).Trim();
+                        if (k == "todayCredit") { double.TryParse(v, NumberStyles.Float, CultureInfo.InvariantCulture, out todayCredit); }
+                        if (k == "budget") { double.TryParse(v, NumberStyles.Float, CultureInfo.InvariantCulture, out budget); }
+                    }
+                    todayLine = "\u4ECA\u65E5 " + todayCredit.ToString("0.#") + " \u79EF\u5206";
+                    if (budget > 0)
+                    {
+                        todayLine += " \u00B7 \u9884\u7B97 " + (todayCredit / budget * 100).ToString("0") + "%";
+                    }
+                }
+                _footer.Text = todayLine;
+            }
+            catch (Exception) { }
+        }
+
+        /** 一行 = 项目名 + 数值 + 占比条 + 元信息；占比条宽度按积分占比 */
+        private void AddRow(string[] p, double total)
+        {
+            string name = p[1];
+            double credit = 0;
+            double prompt = 0;
+            int calls = 0;
+            double.TryParse(p[2], NumberStyles.Float, CultureInfo.InvariantCulture, out credit);
+            double.TryParse(p[3], NumberStyles.Float, CultureInfo.InvariantCulture, out prompt);
+            int.TryParse(p[4], out calls);
+            double pct = total > 0 ? credit / total * 100 : 0;
+
+            StackPanel row = new StackPanel();
+            row.Margin = new Thickness(0, 0, 0, 11);
+
+            Grid line = new Grid();
+            TextBlock n = MakeText(name, 12.5, ValueFg);
+            n.TextTrimming = TextTrimming.CharacterEllipsis;
+            n.Margin = new Thickness(0, 0, 96, 0);
+            line.Children.Add(n);
+
+            TextBlock v = MakeText(credit.ToString("0.#") + " \u79EF\u5206", 11.5, ValueFg);
+            v.HorizontalAlignment = HorizontalAlignment.Right;
+            line.Children.Add(v);
+            row.Children.Add(line);
+
+            Grid bar = new Grid();
+            bar.Margin = new Thickness(0, 5, 0, 0);
+
+            Border track = new Border();
+            track.Height = 3;
+            track.CornerRadius = new CornerRadius(1.5);
+            track.Background = TrackBg;
+            bar.Children.Add(track);
+
+            Border fill = new Border();
+            fill.Height = 3;
+            fill.CornerRadius = new CornerRadius(1.5);
+            fill.HorizontalAlignment = HorizontalAlignment.Left;
+            fill.Background = BarFg;
+            fill.Width = InnerWidth * Math.Min(1.0, pct / 100.0);
+            bar.Children.Add(fill);
+            row.Children.Add(bar);
+
+            TextBlock meta = MakeText(
+                calls + " \u8F6E \u00B7 " + FmtTokens(prompt) + " token \u00B7 " + pct.ToString("0") + "%",
+                9.5, CaptionFg);
+            meta.Margin = new Thickness(0, 4, 0, 0);
+            row.Children.Add(meta);
+
+            _rows.Children.Add(row);
+        }
+    }
+
     public static class Program
     {
         [STAThread]
         public static void Main()
         {
+            // winexe 没有控制台，构造函数里抛异常就是「双击没反应」。
+            // 以前这种情况什么都留不下，现在至少有一行日志。
+            try
+            {
+                RunMain();
+            }
+            catch (Exception ex)
+            {
+                CrashLog(ex);
+            }
+        }
+
+        private static void CrashLog(Exception ex)
+        {
+            try
+            {
+                string path = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "panel-err.log");
+                File.AppendAllText(path,
+                    DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + " [startup] " +
+                    ex.GetType().Name + ": " + ex.Message + "\r\n" + ex.StackTrace + "\r\n",
+                    new UTF8Encoding(false));
+            }
+            catch (Exception) { }
+        }
+
+        private static void RunMain()
+        {
+            string baseDir = AppDomain.CurrentDomain.BaseDirectory;
+            string dataFile = Path.Combine(baseDir, "panel-data.txt");
+            string[] argv = Environment.GetCommandLineArgs();
+
+            // --cost 必须放在互斥量之前判断：宠物通常已经在跑并持有那把锁，
+            // 放在后面就会「双击 --cost 没反应」——而且因为返回码是 0，还查不出原因。
+            if (argv.Length > 1 && argv[1] == "--cost")
+            {
+                Application costApp = new Application();
+                costApp.ShutdownMode = ShutdownMode.OnMainWindowClose;
+                costApp.Run(new CostWindow(baseDir, dataFile));
+                return;
+            }
+
             Mutex mutex = null;
             try
             {
@@ -2198,11 +2659,9 @@ namespace WbPet
             }
             catch (AbandonedMutexException) { }
 
-            string baseDir = AppDomain.CurrentDomain.BaseDirectory;
-            string dataFile = Path.Combine(baseDir, "panel-data.txt");
-            if (Environment.GetCommandLineArgs().Length > 1)
+            if (argv.Length > 1)
             {
-                dataFile = Environment.GetCommandLineArgs()[1];
+                dataFile = argv[1];
             }
 
             Application app = new Application();
