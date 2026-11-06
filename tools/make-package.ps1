@@ -85,8 +85,9 @@ New-Item -ItemType Directory -Force -Path $srcOut | Out-Null
 # 排除本地调试留下的运行时文件，只带源码
 $srcSkip = @('*.log', 'panel-data.txt', 'panel-lines.txt', 'last-turn.txt',
              'pet-events.txt', 'pet-events.old.txt', 'pet-ledger.txt', 'pet-state.txt',
-             'pet-state.txt.tmp', 'pet-bus.port', 'pet-summary.txt', 'pet-history.txt',
-             'pet-budget.txt', 'pet-projects.txt', '*.exe', '*.pdb')
+             'pet-state.txt.tmp', 'pet-bus.port', 'pet-summary.txt', 'pet-weekly.txt',
+             'pet-history.txt', 'pet-budget.txt', 'pet-projects.txt', 'pet-week.txt',
+             '*.exe', '*.pdb')
 Copy-Item (Join-Path $root 'src\*') $srcOut -Recurse -Force -Exclude $srcSkip
 Copy-Item -LiteralPath $Exe (Join-Path $srcOut 'WbPet.exe') -Force
 

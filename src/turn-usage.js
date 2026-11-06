@@ -29,6 +29,8 @@ const BUDGET_FILE = path.join(HOOKS_DIR, 'pet-budget.txt');
 const HISTORY_FILE = path.join(HOOKS_DIR, 'pet-history.txt');
 const SUMMARY_FILE = path.join(HOOKS_DIR, 'pet-summary.txt');
 const PROJECTS_FILE = path.join(HOOKS_DIR, 'pet-projects.txt');
+const WEEK_FILE = path.join(HOOKS_DIR, 'pet-week.txt');
+const WEEKLY_FILE = path.join(HOOKS_DIR, 'pet-weekly.txt');
 
 /**
  * personas.txt 的位置有两种情况：
@@ -436,28 +438,16 @@ function updateHistory(dayKey, dayCredit) {
   return { month: month, days: days, map: map };
 }
 
-/**
- * 本月分项目成本（pet-projects.txt）。
- *
- * 刻意**不做全月扫描**：每个项目的月内成本由每轮增量累加得到——本轮花的钱
- * 必然发生在当前这个项目里，所以增量归属是准确的，而且不随月份增长变慢。
- * 代价是首月从安装那天开始记，不回填历史。
- */
-function updateProjectMonth(monthKey, label, turn) {
-  const map = {};
-  let stored = '';
-  let since = '';
+/** 归档桶的通用读取：`<keyName>=<值>` + `since=` + `p|项目|积分|token|轮次` */
+function readBucket(file, keyName) {
+  const out = { map: {}, stored: '', since: '', pseudo: null };
   let text = '';
-  try { text = fs.readFileSync(PROJECTS_FILE, 'utf8'); } catch (_) { /* 首次运行 */ }
-
-  const today = ledgerLib.dayKeyOf(Date.now());
-  const PSEUDO = '~\u8BB0\u8D26\u524D\u672A\u5206\u644A';
-  let pseudo = null;
+  try { text = fs.readFileSync(file, 'utf8'); } catch (_) { return out; }
 
   for (const line of text.split('\n')) {
-    if (line.startsWith('month=')) { stored = line.slice(6).trim(); continue; }
-    if (line.startsWith('since=')) { since = line.slice(6).trim(); continue; }
-    if (!line.startsWith('p|')) { continue; }
+    if (line.indexOf(keyName + '=') === 0) { out.stored = line.slice(keyName.length + 1).trim(); continue; }
+    if (line.indexOf('since=') === 0) { out.since = line.slice(6).trim(); continue; }
+    if (line.indexOf('p|') !== 0) { continue; }
     const p = line.split('|');
     if (p.length < 5) { continue; }
     const row = {
@@ -466,11 +456,45 @@ function updateProjectMonth(monthKey, label, turn) {
       calls: Number(p[4]) || 0,
     };
     // `~` 开头是派生行：它代表的钱已经在今日全量里，不能再参与累加
-    if (p[1] === PSEUDO) { pseudo = row; continue; }
-    map[p[1]] = row;
+    if (p[1].charAt(0) === '~') { out.pseudo = row; continue; }
+    out.map[p[1]] = row;
   }
+  return out;
+}
 
-  if (stored !== monthKey) {
+function writeBucket(file, keyName, keyValue, since, rows) {
+  const lines = [keyName + '=' + keyValue, 'since=' + since];
+  for (const r of rows) {
+    lines.push(`p|${r.name}|${r.credit.toFixed(2)}|${Math.round(r.prompt)}|${r.calls}`);
+  }
+  try { fs.writeFileSync(file, lines.join('\n') + '\n', 'utf8'); } catch (_) { /* 忽略 */ }
+}
+
+function sortedRows(map) {
+  return Object.keys(map)
+    .map((k) => ({ name: k, credit: map[k].credit, prompt: map[k].prompt, calls: map[k].calls }))
+    .filter((r) => r.credit > 0 || r.calls > 0)
+    .sort((a, b) => b.credit - a.credit)
+    .slice(0, 50);
+}
+
+/**
+ * 本月分项目成本（pet-projects.txt）。
+ *
+ * 刻意**不做全月扫描**：每个项目的月内成本由每轮增量累加得到——本轮花的钱
+ * 必然发生在当前这个项目里，所以增量归属是准确的，而且不随月份增长变慢。
+ * 代价是首月从安装那天开始记，不回填历史。
+ */
+function updateProjectMonth(monthKey, label, turn) {
+  const bucket = readBucket(PROJECTS_FILE, 'month');
+  const today = ledgerLib.dayKeyOf(Date.now());
+  const PSEUDO = '~\u8BB0\u8D26\u524D\u672A\u5206\u644A';
+
+  let since = bucket.since;
+  let pseudo = bucket.pseudo;
+  const map = bucket.map;
+
+  if (bucket.stored !== monthKey) {
     for (const k of Object.keys(map)) { delete map[k]; }
     since = '';
     pseudo = null;
@@ -479,17 +503,13 @@ function updateProjectMonth(monthKey, label, turn) {
   // 记账起点：分段累加不是从月初开始的，界面要能说清「为什么本月合计比今日还小」
   if (!/^\d{4}-\d{2}-\d{2}$/.test(since)) { since = today; }
 
-  const key = String(label || '未知项目').replace(/\|/g, '/');
+  const key = String(label || '\u672A\u77E5\u9879\u76EE').replace(/\|/g, '/');
   if (!map[key]) { map[key] = { credit: 0, prompt: 0, calls: 0 }; }
   map[key].credit += num(turn.credit, 0);
   map[key].prompt += num(turn.prompt, 0);
   map[key].calls += num(turn.calls, 0);
 
-  const rows = Object.keys(map)
-    .map((k) => ({ name: k, credit: map[k].credit, prompt: map[k].prompt, calls: map[k].calls }))
-    .filter((r) => r.credit > 0 || r.calls > 0)
-    .sort((a, b) => b.credit - a.credit)
-    .slice(0, 50);
+  const rows = sortedRows(map);
 
   // 把「今日全量」和「已分摊之和」的差额单列一行，否则首日会出现
   // 本月合计 < 今日，看着像算错了。差额是记账之前那段，确实无法分摊到项目。
@@ -497,29 +517,55 @@ function updateProjectMonth(monthKey, label, turn) {
   const booked = rows.reduce((s, r) => s + r.credit, 0);
   const gap = num(turn.todayCredit, 0) - booked;
   if (gap > 0.05) {
-    const bookedPrompt = rows.reduce((s, r) => s + r.prompt, 0);
-    const bookedCalls = rows.reduce((s, r) => s + r.calls, 0);
     pseudo = {
       credit: gap,
-      prompt: Math.max(0, num(turn.todayPrompt, 0) - bookedPrompt),
-      calls: Math.max(0, num(turn.todayCalls, 0) - bookedCalls),
+      prompt: Math.max(0, num(turn.todayPrompt, 0) - rows.reduce((s, r) => s + r.prompt, 0)),
+      calls: Math.max(0, num(turn.todayCalls, 0) - rows.reduce((s, r) => s + r.calls, 0)),
     };
   }
   if (pseudo && pseudo.credit > 0) {
-    rows.push({
-      name: PSEUDO,
-      credit: pseudo.credit,
-      prompt: pseudo.prompt,
-      calls: pseudo.calls,
-    });
+    rows.push({ name: PSEUDO, credit: pseudo.credit, prompt: pseudo.prompt, calls: pseudo.calls });
   }
 
-  const lines = ['month=' + monthKey, 'since=' + since];
-  for (const r of rows) {
-    lines.push(`p|${r.name}|${r.credit.toFixed(2)}|${Math.round(r.prompt)}|${r.calls}`);
-  }
-  try { fs.writeFileSync(PROJECTS_FILE, lines.join('\n') + '\n', 'utf8'); } catch (_) { /* 忽略 */ }
+  writeBucket(PROJECTS_FILE, 'month', monthKey, since, rows);
   return rows;
+}
+
+/** 本周起始日（周一）的 date key */
+function weekKeyOf(now) {
+  const d = new Date(now);
+  const back = (d.getDay() + 6) % 7;   // 周日=0 → 6
+  d.setDate(d.getDate() - back);
+  return ledgerLib.dayKeyOf(d.getTime());
+}
+
+/**
+ * 本周分项目成本（pet-week.txt）。
+ * 和月度一样靠每轮增量累加，起算点可能不是周一，所以不带「未分摊」行——
+ * 周维度没有「今日全量」这种可对账的基准，硬凑一行反而更迷惑。
+ */
+function updateProjectWeek(weekKey, label, turn) {
+  const bucket = readBucket(WEEK_FILE, 'week');
+  const today = ledgerLib.dayKeyOf(Date.now());
+
+  let since = bucket.since;
+  const map = bucket.map;
+
+  if (bucket.stored !== weekKey) {
+    for (const k of Object.keys(map)) { delete map[k]; }
+    since = '';
+  }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(since)) { since = today; }
+
+  const key = String(label || '\u672A\u77E5\u9879\u76EE').replace(/\|/g, '/');
+  if (!map[key]) { map[key] = { credit: 0, prompt: 0, calls: 0 }; }
+  map[key].credit += num(turn.credit, 0);
+  map[key].prompt += num(turn.prompt, 0);
+  map[key].calls += num(turn.calls, 0);
+
+  const rows = sortedRows(map);
+  writeBucket(WEEK_FILE, 'week', weekKey, since, rows);
+  return { rows: rows, since: since };
 }
 
 
@@ -576,6 +622,42 @@ function computeForecast(month, days, monthly, now) {
     out.text = '本月够用';
   }
   return out;
+}
+
+/**
+ * 本周小结：按项目汇总，直接可粘进周报。
+ * 数据来自 pet-week.txt（每轮增量累加），不做全周扫描，所以是瞬时的。
+ */
+function writeWeekly(week, today, month) {
+  const rows = (week && week.rows) ? week.rows : [];
+  let since = (week && week.since) ? week.since : '';
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(since)) { since = ledgerLib.dayKeyOf(Date.now()); }
+
+  const total = rows.reduce((s, r) => s + r.credit, 0);
+  const totalPrompt = rows.reduce((s, r) => s + r.prompt, 0);
+  const totalCalls = rows.reduce((s, r) => s + r.calls, 0);
+
+  const d = new Date();
+  const md = String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+
+  const lines = [];
+  lines.push(`WorkBuddy 周报 ${since.slice(5)} ~ ${md}`);
+  lines.push(`${rows.length} 个项目 · ${totalCalls} 轮 · ${total.toFixed(1)} 积分 · ${fmt(totalPrompt)} token`);
+  if (rows.length > 0) {
+    lines.push('项目分布：');
+    for (const r of rows.slice(0, 8)) {
+      const pct = total > 0 ? (r.credit / total) * 100 : 0;
+      lines.push(`  ${r.name}  ${r.credit.toFixed(1)} 积分（${pct.toFixed(0)}%）· ${r.calls} 轮`);
+    }
+  }
+  if (month > 0) { lines.push(`本月累计 ${month.toFixed(1)} 积分`); }
+  if (today) { lines.push(`今日 ${today.credit.toFixed(1)} 积分`); }
+
+  try {
+    fs.writeFileSync(WEEKLY_FILE, lines.join('\n') + '\n', 'utf8');
+  } catch (e) {
+    log('写周报失败: ' + e.message);
+  }
 }
 
 /** 结构化数据，供面板渲染成图标卡片（key=value，一行一项） */
@@ -958,26 +1040,39 @@ function main() {
         ctxPct: ctxPct,
       };
 
-      // 分项目成本：用本轮增量累加到当前项目，不做全月扫描
+      // 分项目成本：用本轮增量累加到当前项目，不做全月 / 全周扫描
+      const projLabel = projectLabel(path.basename(path.dirname(tp)));
+      const turnForBucket = Object.assign({}, sum, {
+        todayCredit: today ? today.credit : 0,
+        todayPrompt: today ? today.prompt : 0,
+        todayCalls: today ? today.calls : 0,
+      });
       try {
-        const projDir = path.basename(path.dirname(tp));
         updateProjectMonth(
           ledgerLib.dayKeyOf(Date.now()).slice(0, 7),
-          projectLabel(projDir),
-          Object.assign({}, sum, {
-            todayCredit: today ? today.credit : 0,
-            todayPrompt: today ? today.prompt : 0,
-            todayCalls: today ? today.calls : 0,
-          })
+          projLabel,
+          turnForBucket
         );
       } catch (e) {
         log('项目成本累计失败: ' + e.message);
+      }
+
+      let week = { rows: [] };
+      try {
+        week = updateProjectWeek(weekKeyOf(Date.now()), projLabel, turnForBucket);
+      } catch (e) {
+        log('本周累计失败: ' + e.message);
       }
 
       emitStdout(msg);
       writePanel(buildPanelLines(sum, sess, today));
       writePanelData(sum, sess, today, extra);
       writeSummary(sum, sess, today, extra);
+      try {
+        writeWeekly(week, today, month);
+      } catch (e) {
+        log('周报失败: ' + e.message);
+      }
 
       // 情绪事件（阶段一规则 1-11 + 跨天 + 预算超支），写成功才更新 ledger 的 seq
       try {

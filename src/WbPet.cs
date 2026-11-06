@@ -89,6 +89,7 @@ namespace WbPet
         private readonly string _ledgerFile;
         private readonly string _personasFile;
         private readonly string _summaryFile;
+        private readonly string _weeklyFile;
         private readonly string _budgetFile;
         private readonly string _portFile;
 
@@ -209,6 +210,7 @@ namespace WbPet
             _personasFile = Path.Combine(_assetsDir, "personas.txt");
             _soundsDir = Path.Combine(_assetsDir, "sounds");
             _summaryFile = Path.Combine(baseDir, "pet-summary.txt");
+            _weeklyFile = Path.Combine(baseDir, "pet-weekly.txt");
             _budgetFile = Path.Combine(baseDir, "pet-budget.txt");
             _portFile = Path.Combine(baseDir, "pet-bus.port");
 
@@ -536,6 +538,11 @@ namespace WbPet
             summary.Click += delegate { CopySummary(); };
             menu.Items.Add(summary);
 
+            MenuItem weekly = new MenuItem();
+            weekly.Header = "\u590D\u5236\u672C\u5468\u5C0F\u7ED3";
+            weekly.Click += delegate { CopyWeekly(); };
+            menu.Items.Add(weekly);
+
             // 项目成本：本月各项目占比，独立窗口
             MenuItem cost = new MenuItem();
             cost.Header = "\u9879\u76EE\u6210\u672C\u2026";
@@ -748,22 +755,23 @@ namespace WbPet
             ShowBubbleFor(3);
         }
 
-        /** 把 pet-summary.txt 整段复制走；没有就先跑一轮对话 */
-        private void CopySummary()
+        /** 把 pet-summary.txt / pet-weekly.txt 整段复制走 */
+        private void CopySummary() { CopyFileToClipboard(_summaryFile, "\u4ECA\u65E5\u5C0F\u7ED3", "\u8FD8\u6CA1\u6709\u5C0F\u7ED3\uFF0C\u5148\u8DD1\u4E00\u8F6E\u5BF9\u8BDD"); }
+
+        private void CopyWeekly() { CopyFileToClipboard(_weeklyFile, "\u672C\u5468\u5C0F\u7ED3", "\u8FD8\u6CA1\u6709\u5468\u62A5\uFF0C\u5148\u8DD1\u4E00\u8F6E\u5BF9\u8BDD"); }
+
+        private void CopyFileToClipboard(string path, string label, string emptyHint)
         {
             string text = "";
             try
             {
-                if (File.Exists(_summaryFile))
-                {
-                    text = File.ReadAllText(_summaryFile, Encoding.UTF8).Trim();
-                }
+                if (File.Exists(path)) { text = File.ReadAllText(path, Encoding.UTF8).Trim(); }
             }
             catch (Exception) { }
 
             if (text.Length == 0)
             {
-                _footer.Text = "\u8FD8\u6CA1\u6709\u5C0F\u7ED3\uFF0C\u5148\u8DD1\u4E00\u8F6E\u5BF9\u8BDD";
+                _footer.Text = emptyHint;
                 _footer.Visibility = Visibility.Visible;
                 ShowBubbleFor(4);
                 return;
@@ -774,7 +782,7 @@ namespace WbPet
                 try
                 {
                     Clipboard.SetText(text);
-                    _footer.Text = "\u4ECA\u65E5\u5C0F\u7ED3\u5DF2\u590D\u5236";
+                    _footer.Text = label + "\u5DF2\u590D\u5236";
                     _footer.Visibility = Visibility.Visible;
                     ShowBubbleFor(4);
                     Bounce(7, 1, 220);
