@@ -7,7 +7,7 @@
  *    （含 detached 子进程）会被清理。所以这里通过 WMI Win32_Process.Create
  *    间接启动，新进程父代是 WmiPrvSE.exe，不在 hook 的 Job 里。
  * 2) 面板宿主必须是 GUI 子系统，否则每次启动都会闪一个控制台窗口。
- *    优先用编译好的 WbPet.exe；没有它时退回 wscript + VBS（同样无控制台）。
+ *    只认编译好的 WbPet.exe —— v1.5 起不再维护 PowerShell 版面板。
  *
  * v1.3 修复（面板不显示）：
  *   WorkBuddy 5.9.x 的 hook 进程 PATH 被裁剪，里面没有 System32，
@@ -26,7 +26,6 @@ const { spawn } = require('child_process');
 
 const DIR = __dirname;
 const EXE = path.join(DIR, 'WbPet.exe');
-const VBS = path.join(DIR, 'run-panel.vbs');
 const LOG = path.join(DIR, 'start-panel.log');
 const MAX_LOG = 256 * 1024;
 
@@ -67,11 +66,6 @@ function resolvePowerShell() {
   }
   // 最后才退回裸文件名（PATH 正常时可用）
   return 'powershell.exe';
-}
-
-function resolveWscript() {
-  const p = system32('wscript.exe');
-  return fileExists(p) ? p : 'wscript.exe';
 }
 
 /** WMI 创建进程，脱离 hook 的 Job Object；返回是否成功 */
@@ -131,29 +125,19 @@ function launchDirect(file, args) {
 }
 
 async function launch() {
-  let target = null;
-  let directFile = null;
-  let directArgs = [];
-
-  if (fileExists(EXE)) {
-    target = `"${EXE}"`;
-    directFile = EXE;
-  } else if (fileExists(VBS)) {
-    target = `"${resolveWscript()}" "${VBS}"`;
-    directFile = resolveWscript();
-    directArgs = [VBS];
-  }
-
-  if (!target) {
-    log('既没有 WbPet.exe 也没有 run-panel.vbs，放弃启动');
+  // 只认 WbPet.exe。v1.5 起不再维护 PowerShell 版面板：实时状态、预算条、
+  // 成本看板、上下文占用全在 C# 里，留着那 500 行只会让人以为功能坏了。
+  if (!fileExists(EXE)) {
+    log('WbPet.exe 不存在：先跑 install.ps1（会自动编译）或 src/build-pet.cmd');
     process.exit(0);
   }
 
+  const target = `"${EXE}"`;
   log('开始启动面板: ' + target);
   const ok = await launchViaWmi(target);
   if (!ok) {
     log('WMI 路径不可用，回退直接启动');
-    launchDirect(directFile, directArgs);
+    launchDirect(EXE, []);
   }
 
   // 给 WMI / 进程创建留一点余量再退出，避免 hook 结束得太快

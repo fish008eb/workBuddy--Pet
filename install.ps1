@@ -12,14 +12,14 @@
     powershell -ExecutionPolicy Bypass -File install.ps1
     powershell -ExecutionPolicy Bypass -File install.ps1 -Skin quantum    # 指定初始形象
     powershell -ExecutionPolicy Bypass -File install.ps1 -SkipSprite      # 不下载形象
-    powershell -ExecutionPolicy Bypass -File install.ps1 -BuildNative     # 顺手编译原生 exe
+    powershell -ExecutionPolicy Bypass -File install.ps1 -SkipBuild       # 用现成的 WbPet.exe
 #>
 param(
     [string]$HooksDir = (Join-Path $env:USERPROFILE '.workbuddy\hooks'),
     [string]$SettingsPath = (Join-Path $env:USERPROFILE '.workbuddy\settings.json'),
     [string]$Skin = 'dragon',
     [switch]$SkipSprite,
-    [switch]$BuildNative
+    [switch]$SkipBuild
 )
 
 $ErrorActionPreference = 'Stop'
@@ -51,7 +51,16 @@ if (-not (Test-Path $settingsPath)) {
 Write-Step "复制脚本到 $HooksDir"
 New-Item -ItemType Directory -Force -Path $HooksDir | Out-Null
 Copy-Item -Path (Join-Path $root 'src\*') -Destination $HooksDir -Recurse -Force
-Write-Ok '已复制 turn-usage.js / start-panel.js / panel-wpf.ps1 / WbPet.cs / run-panel.vbs / build-pet.cmd / toast.ps1'
+Write-Ok '已复制 turn-usage.js / start-panel.js / WbPet.cs / pet-hook.cmd / build-pet.cmd / toast.ps1'
+
+# v1.5 之前的 PowerShell 兜底宿主，留着会让人以为功能坏了
+foreach ($legacy in @('panel-wpf.ps1', 'run-panel.vbs', 'run-panel.cmd')) {
+    $lp = Join-Path $HooksDir $legacy
+    if (Test-Path $lp) {
+        Remove-Item -LiteralPath $lp -Force -ErrorAction SilentlyContinue
+        Write-Ok "已清理旧版 $legacy"
+    }
+}
 
 $toolsTarget = Join-Path $HooksDir 'tools'
 New-Item -ItemType Directory -Force -Path $toolsTarget | Out-Null
@@ -200,36 +209,58 @@ $json = $cfg | ConvertTo-Json -Depth 20
 [System.IO.File]::WriteAllText($settingsPath, $json, (New-Object System.Text.UTF8Encoding($false)))
 Write-Ok '已写入 settings.json（UTF-8 无 BOM）'
 
-# ---------- 4. 可选：编译原生版 ----------
-if ($BuildNative) {
-    Write-Step '编译原生宿主 WbPet.exe'
-    $builder = Join-Path $HooksDir 'build-pet.cmd'
+# ---------- 4. 编译面板（v1.5 起必需） ----------
+# PowerShell 兜底面板已移除：实时状态、预算条、成本看板、上下文占用全在
+# WbPet.cs 里，维护两份 UI 只会让人以为功能坏了。
+Write-Step '准备面板 WbPet.exe'
+$exePath = Join-Path $HooksDir 'WbPet.exe'
+$csPath = Join-Path $HooksDir 'WbPet.cs'
+$needBuild = $true
+if (Test-Path $exePath) {
+    if (-not (Test-Path $csPath)) {
+        $needBuild = $false                       # 分发包里只有 exe，没有源码
+    } elseif ((Get-Item $csPath).LastWriteTime -le (Get-Item $exePath).LastWriteTime) {
+        $needBuild = $false                       # 源码不比 exe 新
+    }
+}
+
+if ($SkipBuild -and (Test-Path $exePath)) {
+    Write-Warn2 '已跳过编译（-SkipBuild），沿用现有 WbPet.exe'
+} elseif (-not $needBuild) {
+    Write-Ok 'WbPet.exe 已是最新，跳过编译'
+} else {
     $csc = Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319\csc.exe'
     if (-not (Test-Path $csc)) {
         $csc = Join-Path $env:WINDIR 'Microsoft.NET\Framework\v4.0.30319\csc.exe'
     }
     if (-not (Test-Path $csc)) {
-        Write-Warn2 '没有找到 csc.exe（需要 .NET Framework 4.x），跳过编译'
-    } else {
-        $fw = Split-Path $csc
-        Push-Location $HooksDir
-        try {
-            & $csc /nologo /target:winexe /platform:anycpu /optimize+ `
-                /out:WbPet.exe `
-                /lib:"$fw;$fw\WPF" `
-                /r:System.dll /r:System.Core.dll /r:System.Xml.dll `
-                /r:WindowsBase.dll /r:PresentationCore.dll /r:PresentationFramework.dll /r:System.Xaml.dll `
-                WbPet.cs
-            if (Test-Path (Join-Path $HooksDir 'WbPet.exe')) {
-                Write-Ok 'WbPet.exe 编译成功（内存占用更低、无 PowerShell 宿主）'
-            } else {
-                Write-Warn2 '编译失败，面板将回退到 PowerShell 版'
-            }
-        } catch {
-            Write-Warn2 "编译异常：$($_.Exception.Message)（不影响使用）"
-        }
-        Pop-Location
+        Write-Warn2 '没有找到 csc.exe（需要 .NET Framework 4.x）'
+        Write-Warn2 '面板无法启动。Win10/11 自带 .NET Framework 4.8，若被精简过请手动安装。'
+        exit 1
     }
+
+    $fw = Split-Path $csc
+    Push-Location $HooksDir
+    try {
+        & $csc /nologo /target:winexe /platform:anycpu /optimize+ `
+            /out:WbPet.exe `
+            /lib:"$fw;$fw\WPF" `
+            /r:System.dll /r:System.Core.dll /r:System.Xml.dll `
+            /r:WindowsBase.dll /r:PresentationCore.dll /r:PresentationFramework.dll /r:System.Xaml.dll `
+            WbPet.cs
+        if (Test-Path $exePath) {
+            Write-Ok 'WbPet.exe 编译成功'
+        } else {
+            Pop-Location
+            Write-Warn2 '编译失败，面板无法启动'
+            exit 1
+        }
+    } catch {
+        Pop-Location
+        Write-Warn2 "编译异常：$($_.Exception.Message)"
+        exit 1
+    }
+    Pop-Location
 }
 
 # ---------- 5. 启动 ----------

@@ -97,8 +97,9 @@ if (Test-Path $settingsPath) {
 # ---------- 3. 删除文件 ----------
 Write-Step "清理 $HooksDir"
 $files = @(
-    'turn-usage.js', 'start-panel.js', 'panel-wpf.ps1', 'WbPet.cs', 'WbPet.exe',
-    'run-panel.vbs', 'run-panel.cmd', 'build-pet.cmd', 'toast.ps1', 'pet-hook.cmd',
+    'turn-usage.js', 'start-panel.js', 'WbPet.cs', 'WbPet.exe',
+    'build-pet.cmd', 'toast.ps1', 'pet-hook.cmd',
+    'panel-wpf.ps1', 'run-panel.vbs', 'run-panel.cmd',
     'pet-ledger.js', 'pet-emotion.js', 'pet-event-writer.js',
     'panel-data.txt', 'panel-lines.txt', 'last-turn.txt',
     'pet-events.txt', 'pet-events.old.txt', 'pet-ledger.txt', 'pet-state.txt', 'pet-state.txt.tmp',

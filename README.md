@@ -89,8 +89,8 @@ powershell -ExecutionPolicy Bypass -File install.ps1 -Skin quantum
 # 不下载形象（自己准备素材时用）
 powershell -ExecutionPolicy Bypass -File install.ps1 -SkipSprite
 
-# 顺手编译原生宿主（需要 .NET Framework 4.x，编译后可删掉 PowerShell 依赖）
-powershell -ExecutionPolicy Bypass -File install.ps1 -BuildNative
+# 跳过编译，用现成的 WbPet.exe（分发包里已自带时用）
+powershell -ExecutionPolicy Bypass -File install.ps1 -SkipBuild
 ```
 
 安装完成后，屏幕右下角应该出现角色。**如果没出现，重启一次 WorkBuddy 再发一条消息**（桌面端的 `SessionStart` 是在会话真正跑起来时才触发的，不是窗口一打开就触发）。
@@ -320,21 +320,15 @@ node tools/fetch-sprite.js "D:\pics\my-pet.png" --out .\assets\frames
 
 每轮最多 1 条；非紧急事件间隔 ≥45 秒；10 分钟内 ≤3 条；同一情绪 3 分钟内不重复；鼠标悬停时挂起、移开补播。
 
-> **注意**：情绪功能只在编译后的 `WbPet.exe` 里生效（脚本宿主版保留用量显示与换肤，不读情绪文件）。
+> **注意**：从 v1.5 起面板只有 `WbPet.exe` 一个宿主，不再有 PowerShell 版本。
 
-## 九、编译原生宿主（可选，但情绪功能必需）
+## 九、编译面板
 
-两套宿主共用同一份数据和皮肤，区别在功能完整度与依赖：
+面板是 C#（WPF）编译出来的 `WbPet.exe`，**没有脚本版兜底**。安装脚本会自动编译，分发包里则直接附带预编译的 exe。
 
-| 项 | 脚本宿主（`panel-wpf.ps1`） | 原生宿主（`WbPet.exe`） |
-|---|---|---|
-| 用量气泡 + 换肤 | ✅ | ✅ |
-| 情绪系统（人格/唠叨/动作/打盹） | ❌ | ✅ |
-| 内存（实测） | ~200MB | ~195MB |
-| 启动 | 慢（要先起 PowerShell 运行时） | 快 |
-| 后台进程 | powershell.exe | 只有一个 exe |
+v1.5 之前还有一份 `panel-wpf.ps1` 作为兜底宿主。它已经被删除：实时状态、预算条、成本看板、上下文占用全在 C# 里，留着那 500 行只会让人以为功能坏了，而且等于维护两套 UI。
 
-> 内存两版接近——大头是 WPF 渲染层和 36 帧位图，不是脚本运行时。真正换来的是**启动速度**和**没有 PowerShell 弹窗**。
+手动重编（改过 `WbPet.cs` 就要重编）：
 
 ```bat
 :: 双击或在 cmd 里执行（需要 .NET Framework 4.x，Win10/11 自带）
@@ -343,7 +337,7 @@ build-pet.cmd
 
 脚本会依次：定位编译器 → 校验 7 个程序集 → 校验源码是 UTF-8 with BOM → 用响应文件编译 → 编译成功才重启面板并确认进程存活。任一步失败都会打印具体是哪个文件/哪一步，失败时保留 `build.rsp` 便于排查。
 
-编译完成后 `start-panel.js` 会自动优先使用 `WbPet.exe`（优先级：WbPet.exe → run-panel.vbs 兜底），不需要改配置。
+`start-panel.js` 只认 `WbPet.exe`；找不到就写一行日志然后放弃，不会再偷偷退回到别的宿主。
 
 ### 打成可分发安装包
 
@@ -410,7 +404,7 @@ powershell -ExecutionPolicy Bypass -File tools\make-package.ps1
    `TransparencyKey` 是色键，半透明边缘会和键色混出一圈彩色描边；而且没声明 DPI 感知时整窗会被位图拉伸变糊。改用 **WPF `AllowsTransparency`** 的逐像素 alpha 才干净。
 
 3. **PowerShell 5.1 按 ANSI 读取无 BOM 的 .ps1**
-   脚本里写中文会直接解析失败。所以 `panel-wpf.ps1`、`install.ps1`、`uninstall.ps1` 都**必须存成 UTF-8 with BOM**，改文件时别把 BOM 弄丢。
+   脚本里写中文会直接解析失败。所以 `install.ps1`、`uninstall.ps1` 都**必须存成 UTF-8 with BOM**，改文件时别把 BOM 弄丢。`WbPet.cs` 同理——`build-pet.cmd` 会检查头三字节，没 BOM 直接报错停下。
 
 4. **hook 环境的 PATH 不含 System32**
    `pet-hook.cmd` 里写 `curl` 或 `more` 会直接「不是内部或外部命令」，而且因为 hook 是静默执行的，你只会看到宠物不动。所有系统工具一律用 `%SystemRoot%\System32\...` 绝对路径。
@@ -432,10 +426,8 @@ wb-usage-pet/
 │   ├── pet-event-writer.js  情绪事件追加日志（seq + 轮转）
 │   ├── pet-hook.cmd         轻量事件转发：hook stdin → curl → 面板本地端口
 │   ├── start-panel.js       SessionStart hook：WMI 拉起面板（单实例）
-│   ├── panel-wpf.ps1        WPF 面板（PowerShell 宿主，兜底方案）
-│   ├── WbPet.cs             WPF 面板（C# 原生宿主，实时状态必需）
+│   ├── WbPet.cs             WPF 面板（唯一宿主，含实时状态与成本看板）
 │   ├── build-pet.cmd        编译 WbPet.exe
-│   ├── run-panel.vbs        无控制台窗口的启动器
 │   └── toast.ps1            Windows 通知通道（默认关闭时静默失败）
 ├── tools/
 │   ├── fetch-sprite.js      APNG 拆帧工具（零依赖，可当模块用）
@@ -539,7 +531,7 @@ powershell -ExecutionPolicy Bypass -File uninstall.ps1
 - 读的是本地日志，**不是官方账单**；换机器不同步
 - 长上下文压缩（compact）后，历史轮次的 token 记录仍留在 jsonl 里，所以「会话」数字只会增不会减
 - 形象素材版权不属于本项目，仓库不附带
-- 情绪系统与实时状态只在 C# 版（`WbPet.exe`）生效；脚本宿主版（`panel-wpf.ps1`）只显示用量
+- 情绪系统与实时状态都只在 `WbPet.exe` 里；v1.5 起不再有脚本宿主，所以不需要再关心「哪个版本有什么功能」
 - **实时状态依赖 `curl.exe`**（Win10 1803+ 自带）。更早的系统上 hook 会静默跳过，其余功能不受影响
 - **项目成本首月不完整**：分项目数据靠每轮增量累加，从装上那天开始记，不回填历史；换机器也不同步。装上当天的差额会单列成「记账前未分摊」
 - 状态是**近似**的：`PreToolUse` 每次工具调用都会推一次，不带 `PostToolUse`，所以一次调用结束到下一次开始之间的空档仍显示「执行中」

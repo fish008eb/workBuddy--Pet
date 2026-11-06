@@ -679,14 +679,8 @@ function resolvePowerShell() {
 function ensurePanel() {
   try {
     const exe = path.join(HOOKS_DIR, 'WbPet.exe');
-    const vbs = path.join(HOOKS_DIR, 'run-panel.vbs');
-    let target = '';
-    if (fs.existsSync(exe)) {
-      target = `"${exe}"`;
-    } else if (fs.existsSync(vbs)) {
-      target = `"${path.join(windowsRoot(), 'System32', 'wscript.exe')}" "${vbs}"`;
-    }
-    if (!target) { return; }
+    if (!fs.existsSync(exe)) { return; }   // v1.5 起只认 exe，旧版 VBS 兜底已移除
+    const target = `"${exe}"`;
 
     const cmd =
       `$ErrorActionPreference='SilentlyContinue'; ` +
