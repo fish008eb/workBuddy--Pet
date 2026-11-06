@@ -17,7 +17,7 @@
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { spawn } = require('child_process');
+const { spawn, spawnSync } = require('child_process');
 
 const HOOKS_DIR = __dirname;
 const LOG_FILE = path.join(HOOKS_DIR, 'turn-usage.log');
@@ -385,6 +385,62 @@ function writePanelData(turn, sess, today) {
   }
 }
 
+/** hook 进程的 PATH 不含 System32，powershell/wscript 一律走绝对路径 */
+function windowsRoot() {
+  return process.env.SystemRoot || process.env.WINDIR || 'C:\\Windows';
+}
+
+function resolvePowerShell() {
+  const cands = [
+    path.join(windowsRoot(), 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe'),
+    path.join(windowsRoot(), 'Sysnative', 'WindowsPowerShell', 'v1.0', 'powershell.exe'),
+  ];
+  for (const c of cands) {
+    try { if (fs.existsSync(c)) { return c; } } catch (_) {}
+  }
+  return 'powershell.exe';
+}
+
+/**
+ * 面板自愈：WorkBuddy 恢复旧会话时不一定触发 SessionStart，
+ * 面板就会一直不出现。每轮结束顺手检查一次，没在跑就拉起来。
+ */
+function ensurePanel() {
+  try {
+    const exe = path.join(HOOKS_DIR, 'WbPet.exe');
+    const vbs = path.join(HOOKS_DIR, 'run-panel.vbs');
+    let target = '';
+    if (fs.existsSync(exe)) {
+      target = `"${exe}"`;
+    } else if (fs.existsSync(vbs)) {
+      target = `"${path.join(windowsRoot(), 'System32', 'wscript.exe')}" "${vbs}"`;
+    }
+    if (!target) { return; }
+
+    const cmd =
+      `$ErrorActionPreference='SilentlyContinue'; ` +
+      `$n = @(Get-CimInstance Win32_Process -Filter "Name='WbPet.exe'").Count; ` +
+      `if ($n -gt 0) { exit 0 }; ` +
+      `$r = Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments ` +
+      `@{ CommandLine = '${target.replace(/'/g, "''")}' }; ` +
+      `if ($r.ReturnValue -ne 0) { exit 1 }`;
+
+    const r = spawnSync(resolvePowerShell(),
+      ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', cmd],
+      { timeout: 6000, windowsHide: true, stdio: 'ignore' });
+
+    if (r.error) {
+      log('面板自愈失败: ' + r.error.message);
+    } else if (r.status === 0) {
+      log('面板自愈检查: 已在运行或已拉起');
+    } else {
+      log('面板自愈检查: 拉起失败 exit=' + r.status);
+    }
+  } catch (e) {
+    log('面板自愈异常: ' + (e && e.message ? e.message : e));
+  }
+}
+
 function notify(msg) {
   // 交给 PowerShell 弹 toast；文本经 UTF-8 文件传递，规避命令行编码问题
   const payload = `${msg.title}\n${msg.line1}\n${msg.line2}`;
@@ -401,7 +457,7 @@ function notify(msg) {
   }
   try {
     const child = spawn(
-      'powershell.exe',
+      resolvePowerShell(),
       ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass',
         '-File', ps1, '-MsgFile', MSG_FILE],
       { detached: true, stdio: 'ignore', windowsHide: true }
@@ -503,6 +559,9 @@ function main() {
   process.stdin.setEncoding('utf8');
   process.stdin.on('data', (c) => { input += c; });
   process.stdin.on('end', () => {
+    // 先保面板存活，避免 SessionStart 未触发时整轮白白跑完
+    ensurePanel();
+
     try {
       const payload = JSON.parse(input || '{}');
       const tp = payload.transcript_path;

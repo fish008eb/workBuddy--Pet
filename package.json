@@ -1,6 +1,6 @@
 {
   "name": "wb-usage-pet",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "WorkBuddy desktop usage pet: per-turn tokens, cache-hit rate and credits in a floating speech-bubble panel.",
   "private": true,
   "license": "MIT",

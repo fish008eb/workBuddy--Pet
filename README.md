@@ -319,7 +319,15 @@ npm run sprite -- "D:\pic\a.png"   # 拆帧
 ## 十二、常见问题
 
 **面板没出现**
-先看 `%USERPROFILE%\.workbuddy\hooks\panel.log` 与 `panel-err.log`。最常见是形象没下载好，执行 `node tools/switch-skin.js dragon` 重试。
+先看 `%USERPROFILE%\.workbuddy\hooks\start-panel.log`（v1.2.1 起记录每次启动结果），再看 `panel.log` 与 `panel-err.log`。常见原因：
+
+| 日志里看到 | 原因 | 处理 |
+|---|---|---|
+| `spawn powershell 失败: ENOENT` | WorkBuddy 5.9.x 的 hook 环境 PATH 不含 System32（v1.2.0 及更早的 bug） | 升级到 v1.2.1，已改为绝对路径调用 |
+| `WMI 启动失败` / `exit=非0` | WMI 被安全软件拦截 | 看 `launchDirect` 是否回退成功；必要时手动双击 `WbPet.exe` |
+| 无日志 | `SessionStart` 没触发 | 重启 WorkBuddy 并新开一个会话；v1.2.1 的 Stop hook 也会兜底拉起 |
+
+其余最常见的是形象没下载好，执行 `node tools/switch-skin.js dragon` 重试。
 
 **换形象后一直是旧形象**
 面板靠轮询 `assets\skins\current.txt` 感知变化。如果手改过文件，右键 `Refresh`；仍无效则检查 `assets\skins\<id>\manifest.json` 是否存在。
