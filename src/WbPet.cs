@@ -103,6 +103,9 @@ namespace WbPet
         private readonly List<BitmapImage> _frames = new List<BitmapImage>();
         private readonly List<int> _delays = new List<int>();
         private readonly Dictionary<string, MenuItem> _skinItems = new Dictionary<string, MenuItem>();
+        // 换形象子菜单与清单签名：skins.json 可在运行期被外部改动，打开菜单时按签名对齐
+        private MenuItem _skinRoot;
+        private string _skinSig = "";
         private readonly Dictionary<string, PersonaDef> _personaMap = new Dictionary<string, PersonaDef>();
         private readonly Dictionary<string, List<string[]>> _lineMap = new Dictionary<string, List<string[]>>();
         private readonly Dictionary<string, DateTime> _emoCool = new Dictionary<string, DateTime>();
@@ -719,27 +722,14 @@ namespace WbPet
             monthRoot.Items.Add(MakeMonthItem(monthRoot, 5000, "5000 \u79EF\u5206"));
             menu.Items.Add(monthRoot);
 
-            // skins
+            // skins：先按当前清单建一次，之后每次打开菜单再对齐（见 SyncSkinMenu）
             List<string[]> skins = ReadCatalog();
             if (skins.Count > 0)
             {
-                MenuItem skinRoot = new MenuItem();
-                skinRoot.Header = "\u6362\u5F62\u8C61";
-                foreach (string[] s in skins)
-                {
-                    MenuItem item = new MenuItem();
-                    item.Header = s[1];
-                    item.Tag = s[0];
-                    if (s[0] == _loadedSkin)
-                    {
-                        item.IsChecked = true;
-                        item.FontWeight = FontWeights.Bold;
-                    }
-                    item.Click += OnSkinClick;
-                    _skinItems[s[0]] = item;
-                    skinRoot.Items.Add(item);
-                }
-                menu.Items.Add(skinRoot);
+                _skinRoot = new MenuItem();
+                _skinRoot.Header = "\u6362\u5F62\u8C61";
+                FillSkinMenu(_skinRoot, skins);
+                menu.Items.Add(_skinRoot);
             }
 
             // persona
@@ -844,7 +834,11 @@ namespace WbPet
 
             // 系统 Aero2 模板硬编码悬停色/勾选 glyph/分隔线，属性层拿不到，
             // 因此采用属性级暗色化 + 文本前缀承担选中态，接受系统悬停色。
-            menu.Opened += delegate { RefreshMenuChecks(menu); };
+            menu.Opened += delegate
+            {
+                SyncSkinMenu();
+                RefreshMenuChecks(menu);
+            };
             StyleMenu(menu);
             return menu;
         }
@@ -1604,6 +1598,62 @@ namespace WbPet
             }
             catch (Exception) { }
             return result;
+        }
+
+        /** 换形象子菜单的唯一生产者：启动时初次填充、清单变化时重建，都走这里 */
+        private void FillSkinMenu(MenuItem root, List<string[]> skins)
+        {
+            root.Items.Clear();
+            _skinItems.Clear();
+            StringBuilder sig = new StringBuilder();
+            foreach (string[] s in skins)
+            {
+                MenuItem item = new MenuItem();
+                item.Header = s[1];
+                item.Tag = s[0];
+                // StyleMenu 只覆盖建菜单那一刻已存在的项，后加的要自己上色
+                item.Background = Brushes.Transparent;
+                item.Foreground = TextBodyBrush;
+                item.FontSize = 12;
+                item.Height = 28;
+                if (s[0] == _loadedSkin)
+                {
+                    item.IsChecked = true;
+                    item.FontWeight = FontWeights.Bold;
+                }
+                item.Click += OnSkinClick;
+                _skinItems[s[0]] = item;
+                root.Items.Add(item);
+                sig.Append(s[0]).Append(',');
+            }
+            _skinSig = sig.ToString();
+        }
+
+        /**
+         * 打开菜单时对齐清单。skins.json 在运行期是会被改的（换形象脚本、手工加形象），
+         * 只在构造时读一次的话，新形象要重启面板才出现在菜单里。
+         * 清单变了就重建子菜单，没变只同步勾选态——顺带修掉「用命令行切换后菜单还勾着旧形象」。
+         */
+        private void SyncSkinMenu()
+        {
+            if (_skinRoot == null) { return; }
+            List<string[]> skins = ReadCatalog();
+            if (skins.Count == 0) { return; }
+
+            StringBuilder sig = new StringBuilder();
+            foreach (string[] s in skins) { sig.Append(s[0]).Append(','); }
+            if (sig.ToString() != _skinSig)
+            {
+                FillSkinMenu(_skinRoot, skins);
+                return;
+            }
+
+            foreach (KeyValuePair<string, MenuItem> kv in _skinItems)
+            {
+                bool on = kv.Key == _loadedSkin;
+                kv.Value.IsChecked = on;
+                kv.Value.FontWeight = on ? FontWeights.Bold : FontWeights.Normal;
+            }
         }
 
         private void SwitchSkin(string skinId)
