@@ -101,6 +101,22 @@ Copy-Item (Join-Path $root 'assets\skins.json')   $assetsOut -Force
 Copy-Item (Join-Path $root 'assets\personas.txt') $assetsOut -Force
 Copy-Item (Join-Path $root 'assets\sounds\*.wav') (Join-Path $assetsOut 'sounds') -Force -ErrorAction SilentlyContinue
 
+# 雪碧图形象：assets\atlas\ 放共用的 8x4 图集，skins\tuantuan / skins\keke 只放 manifest
+$atlasSrc = Join-Path $root 'assets\atlas'
+if (Test-Path -LiteralPath $atlasSrc) {
+    Copy-Item -LiteralPath $atlasSrc -Destination $assetsOut -Recurse -Force
+    Write-Ok 'copied assets\atlas (pet-atlas@2x.png + json + 素材对应说明.md)'
+}
+foreach ($atlasSkin in @('tuantuan', 'keke')) {
+    $atlasSkinSrc = Join-Path $root "assets\skins\$atlasSkin"
+    if (Test-Path -LiteralPath $atlasSkinSrc) {
+        $skinsOut2 = Join-Path $assetsOut 'skins'
+        New-Item -ItemType Directory -Force -Path $skinsOut2 | Out-Null
+        Copy-Item -LiteralPath $atlasSkinSrc -Destination $skinsOut2 -Recurse -Force
+        Write-Ok ("copied skins\{0} (atlas manifest)" -f $atlasSkin)
+    }
+}
+
 # 说明文档转成带 BOM，避免旧版记事本打开是乱码
 $readmeTxt = Join-Path $stage '安装说明.txt'
 if (Test-Path -LiteralPath $readmeTxt) {

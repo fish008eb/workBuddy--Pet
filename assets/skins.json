@@ -1,7 +1,22 @@
 {
-  "version": 1,
-  "note": "形象素材版权归 WorkBuddy / 腾讯所有，此处仅登记下载地址，仓库不附带图片文件。",
+  "version": 2,
+  "note": "官方组为网络形象（版权归 WorkBuddy / 腾讯所有，仅登记下载地址，仓库不附带图片，仅供个人本地展示）；tuantuan / keke 为雪碧图（atlas）形象，两张目录只放 manifest，共用 assets/atlas/pet-atlas@2x.png 一张 8×4 图集，按运行时状态/情绪裁格取帧。",
   "skins": [
+    {
+      "id": "tuantuan",
+      "name": "团团 · 云朵猫",
+      "local": true
+    },
+    {
+      "id": "keke",
+      "name": "可可 · 热可可杯",
+      "local": true
+    },
+    {
+      "id": "naigai",
+      "name": "奶盖 · 英短猫",
+      "local": true
+    },
     {
       "id": "quantum",
       "name": "量子喵",

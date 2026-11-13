@@ -1,0 +1,528 @@
+{
+  "image": "pet-atlas@2x.png",
+  "generatedAt": "2026-11-09",
+  "frameCount": 32,
+  "columns": 8,
+  "rows": 4,
+  "cellWidth": 256,
+  "cellHeight": 256,
+  "imageWidth": 2048,
+  "imageHeight": 1024,
+  "background": "transparent",
+  "anchor": "bottomCenter",
+  "note": "trim 为 1024 原图坐标系下的角色包围盒，用于精确对齐与命中检测；裁切时用 x/y/w/h。",
+  "frames": {
+    "tuantuan.state.thinking": {
+      "index": 0,
+      "column": 0,
+      "row": 0,
+      "x": 0,
+      "y": 0,
+      "w": 256,
+      "h": 256,
+      "trim": {
+        "x": 202,
+        "y": 132,
+        "w": 732,
+        "h": 769
+      },
+      "source": "cbcd4d5e-miora_edit_image-1794205532001-0-32e9bc12a35f.png"
+    },
+    "tuantuan.state.working": {
+      "index": 1,
+      "column": 1,
+      "row": 0,
+      "x": 256,
+      "y": 0,
+      "w": 256,
+      "h": 256,
+      "trim": {
+        "x": 188,
+        "y": 140,
+        "w": 746,
+        "h": 762
+      },
+      "source": "04607281-miora_edit_image-1794196115148-0-7ce32a70f99a.png"
+    },
+    "tuantuan.state.juggling": {
+      "index": 2,
+      "column": 2,
+      "row": 0,
+      "x": 512,
+      "y": 0,
+      "w": 256,
+      "h": 256,
+      "trim": {
+        "x": 188,
+        "y": 140,
+        "w": 746,
+        "h": 779
+      },
+      "source": "683cd9c7-miora_edit_image-1794196431149-0-f0db90da51aa.png"
+    },
+    "tuantuan.state.compacting": {
+      "index": 3,
+      "column": 3,
+      "row": 0,
+      "x": 768,
+      "y": 0,
+      "w": 256,
+      "h": 256,
+      "trim": {
+        "x": 186,
+        "y": 148,
+        "w": 759,
+        "h": 753
+      },
+      "source": "68e974cb-miora_edit_image-1794196461864-0-4d398190a73a.png"
+    },
+    "tuantuan.state.error": {
+      "index": 4,
+      "column": 4,
+      "row": 0,
+      "x": 1024,
+      "y": 0,
+      "w": 256,
+      "h": 256,
+      "trim": {
+        "x": 176,
+        "y": 141,
+        "w": 757,
+        "h": 760
+      },
+      "source": "efe1d425-miora_edit_image-1794196475121-0-01b32500c849.png"
+    },
+    "tuantuan.state.done": {
+      "index": 5,
+      "column": 5,
+      "row": 0,
+      "x": 1280,
+      "y": 0,
+      "w": 256,
+      "h": 256,
+      "trim": {
+        "x": 188,
+        "y": 140,
+        "w": 746,
+        "h": 761
+      },
+      "source": "6f5fb772-miora_edit_image-1794196491584-0-683dfbc31c28.png"
+    },
+    "tuantuan.state.blocked": {
+      "index": 6,
+      "column": 6,
+      "row": 0,
+      "x": 1536,
+      "y": 0,
+      "w": 256,
+      "h": 256,
+      "trim": {
+        "x": 185,
+        "y": 148,
+        "w": 751,
+        "h": 754
+      },
+      "source": "7e22f083-miora_edit_image-1794205550215-0-13964fa9e0ab.png"
+    },
+    "tuantuan.state.sleeping": {
+      "index": 7,
+      "column": 7,
+      "row": 0,
+      "x": 1792,
+      "y": 0,
+      "w": 256,
+      "h": 256,
+      "trim": {
+        "x": 175,
+        "y": 142,
+        "w": 728,
+        "h": 776
+      },
+      "source": "f68d9eca-miora_edit_image-1794205615834-0-783080b3f63c.png"
+    },
+    "tuantuan.state.attention": {
+      "index": 8,
+      "column": 0,
+      "row": 1,
+      "x": 0,
+      "y": 256,
+      "w": 256,
+      "h": 256,
+      "trim": {
+        "x": 192,
+        "y": 144,
+        "w": 741,
+        "h": 759
+      },
+      "source": "ecb67411-miora_edit_image-1794196552899-0-e506b0a8e0c8.png"
+    },
+    "tuantuan.emo.happy": {
+      "index": 9,
+      "column": 1,
+      "row": 1,
+      "x": 256,
+      "y": 256,
+      "w": 256,
+      "h": 256,
+      "trim": {
+        "x": 165,
+        "y": 128,
+        "w": 766,
+        "h": 764
+      },
+      "source": "49051423-miora_edit_image-1794205564773-0-23009d790675.png"
+    },
+    "tuantuan.emo.proud": {
+      "index": 10,
+      "column": 2,
+      "row": 1,
+      "x": 512,
+      "y": 256,
+      "w": 256,
+      "h": 256,
+      "trim": {
+        "x": 168,
+        "y": 140,
+        "w": 772,
+        "h": 771
+      },
+      "source": "1ec86ad0-miora_edit_image-1794205601946-0-82d57f30b24c.png"
+    },
+    "tuantuan.emo.surprised": {
+      "index": 11,
+      "column": 3,
+      "row": 1,
+      "x": 768,
+      "y": 256,
+      "w": 256,
+      "h": 256,
+      "trim": {
+        "x": 181,
+        "y": 140,
+        "w": 756,
+        "h": 742
+      },
+      "source": "003d1320-miora_edit_image-1794196622564-0-e01623f5b769.png"
+    },
+    "tuantuan.emo.worried": {
+      "index": 12,
+      "column": 4,
+      "row": 1,
+      "x": 1024,
+      "y": 256,
+      "w": 256,
+      "h": 256,
+      "trim": {
+        "x": 207,
+        "y": 140,
+        "w": 727,
+        "h": 755
+      },
+      "source": "334f9419-miora_edit_image-1794196640243-0-ba3df0b12b7d.png"
+    },
+    "tuantuan.emo.tender": {
+      "index": 13,
+      "column": 5,
+      "row": 1,
+      "x": 1280,
+      "y": 256,
+      "w": 256,
+      "h": 256,
+      "trim": {
+        "x": 188,
+        "y": 140,
+        "w": 638,
+        "h": 813
+      },
+      "source": "35015dcd-miora_edit_image-1794196651979-0-14c9b1d20f21.png"
+    },
+    "tuantuan.emo.sleepy": {
+      "index": 14,
+      "column": 6,
+      "row": 1,
+      "x": 1536,
+      "y": 256,
+      "w": 256,
+      "h": 256,
+      "trim": {
+        "x": 188,
+        "y": 140,
+        "w": 736,
+        "h": 761
+      },
+      "source": "27a8704a-miora_edit_image-1794196686453-0-33b40b021146.png"
+    },
+    "tuantuan.emo.calm": {
+      "index": 15,
+      "column": 7,
+      "row": 1,
+      "x": 1792,
+      "y": 256,
+      "w": 256,
+      "h": 256,
+      "trim": {
+        "x": 188,
+        "y": 140,
+        "w": 746,
+        "h": 761
+      },
+      "source": "ba46a481-miora_edit_image-1794196703987-0-0f1dcfcd50a5.png"
+    },
+    "keke.state.thinking": {
+      "index": 16,
+      "column": 0,
+      "row": 2,
+      "x": 0,
+      "y": 512,
+      "w": 256,
+      "h": 256,
+      "trim": {
+        "x": 152,
+        "y": 62,
+        "w": 696,
+        "h": 847
+      },
+      "source": "6d5de14b-miora_edit_image-1794205635216-0-5ea5d24daa7c.png"
+    },
+    "keke.state.working": {
+      "index": 17,
+      "column": 1,
+      "row": 2,
+      "x": 256,
+      "y": 512,
+      "w": 256,
+      "h": 256,
+      "trim": {
+        "x": 123,
+        "y": 0,
+        "w": 751,
+        "h": 909
+      },
+      "source": "b85d171d-miora_edit_image-1794196763466-0-02afd347de34.png"
+    },
+    "keke.state.juggling": {
+      "index": 18,
+      "column": 2,
+      "row": 2,
+      "x": 512,
+      "y": 512,
+      "w": 256,
+      "h": 256,
+      "trim": {
+        "x": 114,
+        "y": 52,
+        "w": 774,
+        "h": 857
+      },
+      "source": "1ef5c04a-miora_edit_image-1794196781950-0-5182496d9856.png"
+    },
+    "keke.state.compacting": {
+      "index": 19,
+      "column": 3,
+      "row": 2,
+      "x": 768,
+      "y": 512,
+      "w": 256,
+      "h": 256,
+      "trim": {
+        "x": 122,
+        "y": 160,
+        "w": 728,
+        "h": 749
+      },
+      "source": "abc90d45-miora_edit_image-1794196797513-0-b0d110d3f0ed.png"
+    },
+    "keke.state.error": {
+      "index": 20,
+      "column": 4,
+      "row": 2,
+      "x": 1024,
+      "y": 512,
+      "w": 256,
+      "h": 256,
+      "trim": {
+        "x": 154,
+        "y": 52,
+        "w": 680,
+        "h": 857
+      },
+      "source": "dd964441-miora_edit_image-1794196848764-0-233a1339432a.png"
+    },
+    "keke.state.done": {
+      "index": 21,
+      "column": 5,
+      "row": 2,
+      "x": 1280,
+      "y": 512,
+      "w": 256,
+      "h": 256,
+      "trim": {
+        "x": 153,
+        "y": 135,
+        "w": 679,
+        "h": 774
+      },
+      "source": "2cdd0275-miora_edit_image-1794196862425-0-de743f0c5ee9.png"
+    },
+    "keke.state.blocked": {
+      "index": 22,
+      "column": 6,
+      "row": 2,
+      "x": 1536,
+      "y": 512,
+      "w": 256,
+      "h": 256,
+      "trim": {
+        "x": 112,
+        "y": 78,
+        "w": 768,
+        "h": 840
+      },
+      "source": "bbf28c68-miora_edit_image-1794205668512-0-79a1f4c0dd17.png"
+    },
+    "keke.state.sleeping": {
+      "index": 23,
+      "column": 7,
+      "row": 2,
+      "x": 1792,
+      "y": 512,
+      "w": 256,
+      "h": 256,
+      "trim": {
+        "x": 157,
+        "y": 189,
+        "w": 675,
+        "h": 720
+      },
+      "source": "06e999fd-miora_edit_image-1794205730329-0-184d3134f618.png"
+    },
+    "keke.state.attention": {
+      "index": 24,
+      "column": 0,
+      "row": 3,
+      "x": 0,
+      "y": 768,
+      "w": 256,
+      "h": 256,
+      "trim": {
+        "x": 157,
+        "y": 18,
+        "w": 675,
+        "h": 911
+      },
+      "source": "831ea936-miora_edit_image-1794196938926-0-3ae9426bd7f3.png"
+    },
+    "keke.emo.happy": {
+      "index": 25,
+      "column": 1,
+      "row": 3,
+      "x": 256,
+      "y": 768,
+      "w": 256,
+      "h": 256,
+      "trim": {
+        "x": 115,
+        "y": 91,
+        "w": 786,
+        "h": 818
+      },
+      "source": "48656aab-miora_edit_image-1794205684048-0-6b3e45382ed5.png"
+    },
+    "keke.emo.proud": {
+      "index": 26,
+      "column": 2,
+      "row": 3,
+      "x": 512,
+      "y": 768,
+      "w": 256,
+      "h": 256,
+      "trim": {
+        "x": 205,
+        "y": 0,
+        "w": 666,
+        "h": 911
+      },
+      "source": "11f8fdbf-miora_edit_image-1794205704134-0-e57eb3dc545e.png"
+    },
+    "keke.emo.surprised": {
+      "index": 27,
+      "column": 3,
+      "row": 3,
+      "x": 768,
+      "y": 768,
+      "w": 256,
+      "h": 256,
+      "trim": {
+        "x": 153,
+        "y": 53,
+        "w": 704,
+        "h": 855
+      },
+      "source": "ae09d22d-miora_edit_image-1794197038157-0-592062d9b809.png"
+    },
+    "keke.emo.worried": {
+      "index": 28,
+      "column": 4,
+      "row": 3,
+      "x": 1024,
+      "y": 768,
+      "w": 256,
+      "h": 256,
+      "trim": {
+        "x": 153,
+        "y": 85,
+        "w": 681,
+        "h": 824
+      },
+      "source": "72397573-miora_edit_image-1794197057378-0-11dc930aac10.png"
+    },
+    "keke.emo.tender": {
+      "index": 29,
+      "column": 5,
+      "row": 3,
+      "x": 1280,
+      "y": 768,
+      "w": 256,
+      "h": 256,
+      "trim": {
+        "x": 166,
+        "y": 57,
+        "w": 670,
+        "h": 856
+      },
+      "source": "15aa6e6e-miora_edit_image-1794197084856-0-f96f553947fa.png"
+    },
+    "keke.emo.sleepy": {
+      "index": 30,
+      "column": 6,
+      "row": 3,
+      "x": 1536,
+      "y": 768,
+      "w": 256,
+      "h": 256,
+      "trim": {
+        "x": 155,
+        "y": 86,
+        "w": 677,
+        "h": 823
+      },
+      "source": "837cd86f-miora_edit_image-1794197102346-0-055f73bdca09.png"
+    },
+    "keke.emo.calm": {
+      "index": 31,
+      "column": 7,
+      "row": 3,
+      "x": 1792,
+      "y": 768,
+      "w": 256,
+      "h": 256,
+      "trim": {
+        "x": 157,
+        "y": 52,
+        "w": 685,
+        "h": 857
+      },
+      "source": "ce2decb8-miora_edit_image-1794205746965-0-00c7e04615d5.png"
+    }
+  }
+}

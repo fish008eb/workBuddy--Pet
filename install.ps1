@@ -71,10 +71,27 @@ $assetsTarget = Join-Path $HooksDir 'assets'
 New-Item -ItemType Directory -Force -Path $assetsTarget | Out-Null
 Copy-Item -Path (Join-Path $root 'assets\skins.json') -Destination $assetsTarget -Force
 Copy-Item -Path (Join-Path $root 'assets\personas.txt') -Destination $assetsTarget -Force
+
+# 雪碧图形象 团团 / 可可：目录里只有 manifest.json，图集放在 assets\atlas\ 共用一份。
+# 分开存放的原因：一只角色一张 1.65MB 的 PNG，复制两份既占安装目录也让发布包翻倍。
+$atlasSrc = Join-Path $root 'assets\atlas'
+if (Test-Path -LiteralPath $atlasSrc) {
+    $atlasTarget = Join-Path $assetsTarget 'atlas'
+    New-Item -ItemType Directory -Force -Path $atlasTarget | Out-Null
+    Copy-Item -Path (Join-Path $atlasSrc '*') -Destination $atlasTarget -Recurse -Force
+}
+foreach ($atlasSkin in @('tuantuan', 'keke')) {
+    $atlasSkinSrc = Join-Path $root "assets\skins\$atlasSkin"
+    if (Test-Path -LiteralPath $atlasSkinSrc) {
+        $atlasSkinTarget = Join-Path $assetsTarget "skins\$atlasSkin"
+        New-Item -ItemType Directory -Force -Path $atlasSkinTarget | Out-Null
+        Copy-Item -Path (Join-Path $atlasSkinSrc '*') -Destination $atlasSkinTarget -Recurse -Force
+    }
+}
 $soundsTarget = Join-Path $assetsTarget 'sounds'
 New-Item -ItemType Directory -Force -Path $soundsTarget | Out-Null
 Copy-Item -Path (Join-Path $root 'assets\sounds\*.wav') -Destination $soundsTarget -Force -ErrorAction SilentlyContinue
-Write-Ok '已复制 skins.json / personas.txt / sounds\*.wav'
+Write-Ok '已复制 skins.json / personas.txt / sounds\*.wav / atlas 与 skins\tuantuan、skins\keke（雪碧图形象）'
 
 # 面板第一次启动前没有 pet-state.txt，先放一份默认偏好，避免面板与 hook 各写一份
 $stateFile = Join-Path $HooksDir 'pet-state.txt'

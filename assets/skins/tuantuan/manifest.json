@@ -1,0 +1,11 @@
+{
+  "kind": "atlas",
+  "name": "团团 · 云朵猫",
+  "image": "../../atlas/pet-atlas@2x.png",
+  "cell": 256,
+  "columns": 8,
+  "rows": 4,
+  "base": 0,
+  "w": 200,
+  "h": 200
+}

@@ -1,0 +1,11 @@
+{
+  "kind": "atlas",
+  "name": "可可 · 热可可杯",
+  "image": "../../atlas/pet-atlas@2x.png",
+  "cell": 256,
+  "columns": 8,
+  "rows": 4,
+  "base": 16,
+  "w": 186,
+  "h": 186
+}

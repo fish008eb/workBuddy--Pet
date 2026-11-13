@@ -53,7 +53,7 @@
 - **动图形象**：支持 APNG 逐帧播放（默认 36 帧循环）
 - **情绪表达**：7 种情绪、3 套人格、3 档唠叨，按用量、预算与时间自动开口
 - **完成提示音**：每轮回答结束响一声（两音合成，可关，告警情绪换低沉音）
-- **12 套形象可换**：右键菜单即点即换，本地缓存秒切；也能换成自己的图片
+- **15 套形象可换**（12 套官方 + 3 套本地）：右键菜单即点即换，本地缓存秒切；也能换成自己的图片
 - **生命周期跟随**：打开 WorkBuddy 自动出现，完全退出后自动消失
 - **原生宿主可选**：编译成 `WbPet.exe` 后启动更快、无 PowerShell 进程（情绪与实时状态都依赖它）
 
@@ -103,20 +103,21 @@ powershell -ExecutionPolicy Bypass -File install.ps1 -SkipBuild
 | 鼠标移到角色上 | 显示用量气泡 |
 | 移开鼠标 | 0.45 秒后自动收起 |
 | 左键拖动 | 移动到任意位置（会记住） |
-| 右键 → `换形象` | 12 个预设形象任选，切换即时生效 |
+| 右键 → `换形象` | 15 个预设形象任选，切换即时生效 |
 | 右键 → `人格` | 可爱治愈 / 毒舌吐槽 / 克制工程师 |
 | 右键 → `唠叨程度` | 克制 / 话痨 / 极简 |
 | 右键 → `提示音` | 开 / 关 / 试听 |
 | 右键 → `静音 1 小时` | 期间不弹任何情绪气泡 |
-| 右键 → `Refresh` | 立即刷新数据 |
+| 右键 → `刷新数据` | 立即刷新数据 |
 | 右键 → `复制今日小结` | 把今天的数据拼成一段话放进剪贴板 |
 | 右键 → `复制本周小结` | 按项目汇总本周数据，直接进周报 |
 | 右键 → `项目成本…` | 打开本月分项目成本看板 |
 | 右键 → `日预算` | 不启用 / 50 / 100 / 200 / 500 积分每日封顶 |
 | 右键 → `月预算` | 不启用 / 500 / 1000 / 2000 / 5000 积分每月封顶 |
 | 等待授权时左键点一下 | 把 WorkBuddy 切回前台（拖动超过 3px 算拖动，不算点击） |
-| 右键 → `Hide for 10 min` | 藏起来 10 分钟 |
-| 右键 → `Exit` | 彻底退出 |
+| 右键 → `隐藏 10 分钟` | 藏起来 10 分钟，到期自动恢复 |
+| 右键 → `置顶显示` | 开关常驻置顶（写入 `pet-state.txt`，重启后保留） |
+| 右键 → `退出` | 彻底退出 |
 | 每轮对话结束 | 气泡自动弹出 6 秒 + 角色动一下 + 一句情绪反馈（视触发规则） |
 | 深夜 / 久坐 / 长时间无操作 | 自己开口提醒，或进入打盹状态 |
 
@@ -257,16 +258,17 @@ WorkBuddy 周报 11-02 ~ 11-06
 
 ## 七、换形象（换肤）
 
-右键角色 → `换形象`，12 个预设形象任选，点完 1 秒内切换，不用重启。
+右键角色 → `换形象`，3 个本地形象（雪碧图的 `tuantuan` / `keke` / `naigai`）+ 12 个官方网络形象任选，点完 1 秒内切换，不用重启。**本地形象不联网、随包入库**，详见下方「雪碧图形象：团团 / 可可 / 奶盖」。
 
 | id | 名称 | id | 名称 |
 |---|---|---|---|
-| `quantum` | 量子喵 | `academy` | 学院喵 |
-| `sweet` | 甜心喵 | `archive` | 档案喵 |
-| `pixel` | 像素喵 | `design` | 设计喵 |
-| `latte` | 拿铁喵 | `elite` | 和平精英喵 |
-| `floral` | 花艺喵 | `rich` | 暴富喵 |
-| `astro` | 星际喵 | `dragon` | 龙焰喵（默认） |
+| `tuantuan` | 团团 · 云朵猫（本地） | `keke` | 可可 · 热可可杯（本地） |
+| `naigai` | 奶盖 · 英短猫（本地） | `quantum` | 量子喵 |
+| `sweet` | 甜心喵 | `academy` | 学院喵 |
+| `pixel` | 像素喵 | `archive` | 档案喵 |
+| `latte` | 拿铁喵 | `design` | 设计喵 |
+| `floral` | 花艺喵 | `elite` | 和平精英喵 |
+| `dragon` | 龙焰喵（默认） | `rich` | 暴富喵 |
 
 命令行同样可以切（调用的是同一套逻辑）：
 
@@ -276,7 +278,7 @@ node tools/switch-skin.js quantum       # 按 id 切换
 node tools/switch-skin.js "D:\pic\a.png" --force   # 换自定义图片
 ```
 
-**缓存机制**：每个形象第一次切换时下载并拆帧，存到 `assets/skins/<id>/`，之后切换是本地读取，秒切。想强制重新下载加 `--force`。
+**缓存机制**：官方形象第一次切换时下载并拆帧，存到 `assets/skins/<id>/`，之后切换是本地读取，秒切。想强制重新下载加 `--force`。**`tuantuan` / `keke` 是例外**：资源随包（共用 `assets/atlas/pet-atlas@2x.png`），不下载、不需要 `--force`，`skins.json` 里也不填 url。
 
 ### 换成自己的形象
 
@@ -295,6 +297,63 @@ node tools/fetch-sprite.js "D:\pics\my-pet.png" --out .\assets\frames
 - 普通静态 PNG（按单帧处理）
 
 **小提示**：素材最好是**透明背景**。白底图请先抠图，否则方块底会留在桌面上；尺寸不必纠结，脚本会统一缩放到 220px 高。
+
+### 雪碧图形象：团团 / 可可（atlas）
+
+这两个形象**不拆帧**：`assets/atlas/pet-atlas@2x.png` 是一张 2048×1024 的 8 列 × 4 行图集（单格 256），面板运行时用 `CroppedBitmap` 按「状态 + 情绪」裁格，两只角色共用同一份 PNG，皮肤目录里**不放** 逐帧图片。
+
+| 项 | 值 |
+|---|---|
+| 图集 | `assets/atlas/pet-atlas@2x.png`（2048×1024，单格 256，RGBA 透明） |
+| 角色 | 团团 = 索引 0–15（行 0–1）· 可可 = 索引 16–31（行 2–3） |
+| 皮肤目录 | `assets/skins/tuantuan/`、`assets/skins/keke/`，**只放 manifest.json** |
+
+`manifest.json` 字段：`kind:"atlas"` 声明类型（有它才走裁格分支）；`image` 为相对 manifest 的图集路径；`cell` / `columns` / `rows` 描述网格；`base` 是该角色起始索引（团团 `0`、可可 `16`）；`w` / `h` 是屏幕显示尺寸（团团 200×200，可可 186×186——可可原始体量偏高，按 trim 宽度等比缩到 0.93，避免同屏失衡）。
+
+状态与情绪取帧（索引 = 行 × 8 + 列，代码里用逻辑序号 0–15）：
+
+| 序号 | 状态帧 | 序号 | 情绪帧 |
+|---|---|---|---|
+| 0–3 | thinking / working / juggling / compacting | 9–11 | happy / proud / surprised |
+| 4–7 | error / done / blocked / sleeping | 12–14 | worried / tender / sleepy |
+| 8 | attention | 15 | calm（即 idle 默认帧） |
+
+优先级：`error / blocked / attention` 属打断型，压过情绪帧；情绪帧播完（`durSec + 0.2s`）自动回到当前状态帧；休眠时 idle 显示 sleeping 帧。
+
+**换成自己的图集**：按 8 列 × 4 行、单格等宽、透明底重排 PNG，再改 `manifest.json` 的 `image` / `cell` / `base` / `w` / `h` 即可，代码一行都不用动。生成图集、裁切表与 XAML 的 `build_atlas.py` **不在本仓库**，而在仓库外的素材目录（本项目为 `C:\Users\fish0\WorkBuddy\2026-11-09-10-04-48\pet-atlas\`），不随仓库与发布包分发；要改源图或调整帧顺序，回那个目录重跑即可。
+
+### 雪碧图形象：奶盖（照片级英短，带动作序列）
+
+`naigai` 是第二套图集形象，跟团团 / 可可共用同一套取帧代码，但用**自己的图集文件**和**多帧序列**：
+
+| 项 | 值 |
+|---|---|
+| 图集 | `assets/atlas/naigai-atlas@2x.png`（1920×1920，6 列 × 6 行，单格 320，33 帧有效） |
+| 皮肤目录 | `assets/skins/naigai/manifest.json`，不放逐帧图片 |
+| 生成脚本 | `tools/build-naigai-atlas.py`（需要 Pillow + numpy，仅出图时用） |
+
+素材是青底（`#00FBFD`）的照片级动作长条，脚本负责三件事：抠成透明（带边缘羽化 + 青边压制）、按「等分 + 谷值」切帧（猫与猫几乎贴在一起，纯连通域会粘成一片）、同条内保留腾空位移、跨条按最高帧统一缩放（六组动作才是同一只猫）。改素材后重跑：
+
+```bash
+python tools/build-naigai-atlas.py --preview     # --preview 会额外输出带编号的预览图
+```
+
+**动作序列（seq）**：`manifest.json` 多了一个可选字段 `seq`，格式是「槽位: 帧序号列表@帧间隔」，例如 `"1": "21,22,23,24,25,26@260"`。配了 seq 的槽位由 `_atlasTimer` 按间隔逐帧推进，没配就还是一槽一帧的静态贴图——**老图集完全不受影响**。
+
+| 槽位 | 状态 | 帧 | 表达 |
+|---|---|---|---|
+| 0 | thinking | 1–4 | 小幅张望，像在琢磨 |
+| 1 | working | 21–26 | 埋头吃饭：干活 = 吃积分 |
+| 2 | juggling | 27–31 | 扑蝴蝶，并行子任务时最闹腾 |
+| 3 | compacting | 5–8 | 低头收拾 |
+| 4 | error | 19–20 | 低头眯眼，明确不高兴 |
+| 5 | done | 32,27 | 抬爪，本轮完成 |
+| 6 | blocked | 0,1 | 端坐盯着你，偶尔抬头催一下 |
+| 7 | sleeping | 6,7 | 低头打盹 |
+| 8 | attention | 5–20 | 抬头到低头扫一整圈 |
+| 9–15 | happy / proud / surprised / worried / tender / sleepy / calm | 见 manifest | 情绪帧，播完回状态帧 |
+
+帧间隔会乘 `_runSpeed`：执行工具时吃得快、思考时张望得慢，休眠时整体放慢，和原有的运动语言一致。素材来源与逐帧对照见 `assets/atlas/素材对应说明.md`。
 
 ## 八、情绪系统（仅 WbPet.exe 生效）
 
@@ -337,7 +396,7 @@ node tools/fetch-sprite.js "D:\pics\my-pet.png" --out .\assets\frames
 
 ### 自己改词
 
-所有文案在 `assets/personas.txt`，格式 `line|人格|触发key|变体|文案|emoji`，改完重启面板即可。占位符支持 `{in} {out} {cache} {credit} {calls} {today} {n} {h} {name}`。
+所有文案在 `assets/personas.txt`，格式 `line|人格|触发key|变体|文案|emoji`，改完重启面板即可。占位符支持 `{in} {out} {cache} {credit} {calls} {today} {n} {h} {name}`，以及预算类 `{budget} {pct} {month} {mbudget} {mpct}`。
 
 ### 防刷屏
 
@@ -433,7 +492,7 @@ powershell -ExecutionPolicy Bypass -File tools\make-package.ps1
    `pet-hook.cmd` 里写 `curl` 或 `more` 会直接「不是内部或外部命令」，而且因为 hook 是静默执行的，你只会看到宠物不动。所有系统工具一律用 `%SystemRoot%\System32\...` 绝对路径。
 
 5. **气泡是有高度的**
-   窗口固定 340×480，气泡底对齐往上长。加一行状态文案就可能把气泡顶出窗口上沿——所以预算条没有做成独立区块，而是复用了「今日」下面那条分隔线，只把 1px 加粗到 3px。
+   窗口固定 340×496（4 指标改竖排后加高 16px；窗口透明，多出的只是空气），气泡底对齐往上长。加一行状态文案就可能把气泡顶出窗口上沿——所以预算条没有做成独立区块，而是复用了「今日」下面那条分隔线，只把 1px 加粗到 3px。
 
 ## 十一、目录结构
 
@@ -454,12 +513,17 @@ wb-usage-pet/
 │   └── toast.ps1            Windows 通知通道（默认不启用，notify=1 才走）
 ├── tools/
 │   ├── fetch-sprite.js      APNG 拆帧工具（零依赖，可当模块用）
-│   └── switch-skin.js       形象切换：下载 / 缓存 / 改 current.txt
+│   ├── switch-skin.js       形象切换：下载 / 缓存 / 改 current.txt
+│   └── build-naigai-atlas.py  奶盖素材 → 抠图 / 切帧 / 图集（Pillow + numpy）
 ├── assets/
-│   ├── skins.json           形象清单（只存 id、名称、下载地址）
+│   ├── skins.json           形象清单（官方组存下载地址；tuantuan / keke / naigai 为本地形象）
 │   ├── personas.txt         3 套人格文案（可直接改词）
 │   ├── sounds/              提示音 turn-done.wav / turn-alert.wav
-│   └── skins/<id>/          运行时生成：该形象的序列帧与 current.txt（不入库）
+│   ├── atlas/               雪碧图形象图集（pet-atlas@2x.png 2048×1024 + naigai-atlas@2x.png 1920×1920）
+│   ├── skins/tuantuan/      团团 · 云朵猫，只放 atlas 的 manifest.json
+│   ├── skins/keke/          可可 · 热可可杯，只放 atlas 的 manifest.json
+│   ├── skins/naigai/        奶盖 · 英短猫，manifest 里带 seq 动作序列
+│   └── skins/<其它 id>/     运行时生成的缓存与 current.txt（不入库）
 ├── docs/
 │   └── emotion-design.md    情绪系统设计文档
 └── README.md
@@ -504,7 +568,7 @@ npm run sprite -- "D:\pic\a.png"   # 拆帧
 其余最常见的是形象没下载好，执行 `node tools/switch-skin.js dragon` 重试。
 
 **换形象后一直是旧形象**
-面板靠轮询 `assets\skins\current.txt` 感知变化。如果手改过文件，右键 `Refresh`；仍无效则检查 `assets\skins\<id>\manifest.json` 是否存在。
+面板靠轮询 `assets\skins\current.txt` 感知变化。如果手改过文件，右键 `刷新数据`；仍无效则检查 `assets\skins\<id>\manifest.json` 是否存在。
 
 **换形象很慢 / 失败**
 首次切换要下载 3–9MB 并拆帧，取决于网络。失败会写进 `assets\skins\status.txt`，可加 `--force` 重试；公司网络限制 `download.codebuddy.cn` 时，用 `node tools/switch-skin.js "本地图片.png"` 换自定义素材。
@@ -525,7 +589,7 @@ npm run sprite -- "D:\pic\a.png"   # 拆帧
 端口通了但状态不动，多半是 hook 没注册——hook 配置在**会话启动时**读取，改完要新开一个会话才生效。
 
 **气泡顶部被切掉**
-说明这轮的情绪文案太长，把气泡顶出了窗口。窗口高 480，是留了余量的；如果自己改过 `personas.txt` 加了很长的句子，把 `WbPet.cs` 里的 `Height` 调大即可。
+说明这轮的情绪文案太长，把气泡顶出了窗口。窗口高 496，是留了余量的；如果自己改过 `personas.txt` 加了很长的句子，把 `WbPet.cs` 里的 `Height` 调大即可。
 
 **面板出现后又消失**
 面板每 3 秒检查 WorkBuddy **主窗口**是否存在。Electron 关窗口后进程还留在托盘，所以判断依据是 `MainWindowHandle` 而不是进程数。如果你用多显示器把窗口移到了副屏，属于正常行为。

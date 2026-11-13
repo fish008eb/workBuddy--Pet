@@ -1,0 +1,723 @@
+{
+  "image": "naigai-atlas@2x.png",
+  "character": "naigai",
+  "frameCount": 33,
+  "columns": 6,
+  "rows": 6,
+  "cellWidth": 320,
+  "cellHeight": 320,
+  "imageWidth": 1920,
+  "imageHeight": 1920,
+  "background": "transparent",
+  "anchor": "bottomCenter",
+  "note": "trim 为角色在该格内的落点，用于对齐与命中检测；同一条动作内的相对位移已保留。",
+  "strips": [
+    {
+      "file": "主体形象.png",
+      "key": "sit",
+      "label": "主体形象 · 端坐",
+      "count": 1,
+      "bg": [
+        1,
+        252,
+        254
+      ],
+      "maxH": 1155,
+      "scale": 0.2476
+    },
+    {
+      "file": "看周围.png",
+      "key": "look4",
+      "label": "看周围 · 小幅张望",
+      "count": 4,
+      "bg": [
+        1,
+        251,
+        253
+      ],
+      "maxH": 606,
+      "scale": 0.4719
+    },
+    {
+      "file": "看周围1.png",
+      "key": "lookUp",
+      "label": "抬头 · 低头到抬头",
+      "count": 8,
+      "bg": [
+        1,
+        251,
+        253
+      ],
+      "maxH": 365,
+      "scale": 0.7836
+    },
+    {
+      "file": "看周围2.png",
+      "key": "lookDown",
+      "label": "低头 · 抬头到低头",
+      "count": 8,
+      "bg": [
+        1,
+        251,
+        253
+      ],
+      "maxH": 370,
+      "scale": 0.773
+    },
+    {
+      "file": "吃饭.png",
+      "key": "eat",
+      "label": "吃饭 · 埋头吃粮",
+      "count": 6,
+      "bg": [
+        1,
+        251,
+        253
+      ],
+      "maxH": 492,
+      "scale": 0.5813
+    },
+    {
+      "file": "扑蝴蝶.png",
+      "key": "play",
+      "label": "扑蝴蝶 · 起身扑击",
+      "count": 6,
+      "bg": [
+        7,
+        251,
+        253
+      ],
+      "maxH": 344,
+      "scale": 0.8314
+    }
+  ],
+  "frames": [
+    {
+      "index": 0,
+      "column": 0,
+      "row": 0,
+      "x": 0,
+      "y": 0,
+      "w": 320,
+      "h": 320,
+      "action": "sit",
+      "label": "主体形象 · 端坐",
+      "stripIndex": 0,
+      "source": "主体形象.png",
+      "trim": {
+        "x": 54,
+        "y": 18,
+        "w": 212,
+        "h": 286
+      }
+    },
+    {
+      "index": 1,
+      "column": 1,
+      "row": 0,
+      "x": 320,
+      "y": 0,
+      "w": 320,
+      "h": 320,
+      "action": "look4",
+      "label": "看周围 · 小幅张望",
+      "stripIndex": 0,
+      "source": "看周围.png",
+      "trim": {
+        "x": 56,
+        "y": 23,
+        "w": 209,
+        "h": 281
+      }
+    },
+    {
+      "index": 2,
+      "column": 2,
+      "row": 0,
+      "x": 640,
+      "y": 0,
+      "w": 320,
+      "h": 320,
+      "action": "look4",
+      "label": "看周围 · 小幅张望",
+      "stripIndex": 1,
+      "source": "看周围.png",
+      "trim": {
+        "x": 56,
+        "y": 18,
+        "w": 209,
+        "h": 286
+      }
+    },
+    {
+      "index": 3,
+      "column": 3,
+      "row": 0,
+      "x": 960,
+      "y": 0,
+      "w": 320,
+      "h": 320,
+      "action": "look4",
+      "label": "看周围 · 小幅张望",
+      "stripIndex": 2,
+      "source": "看周围.png",
+      "trim": {
+        "x": 55,
+        "y": 35,
+        "w": 210,
+        "h": 269
+      }
+    },
+    {
+      "index": 4,
+      "column": 4,
+      "row": 0,
+      "x": 1280,
+      "y": 0,
+      "w": 320,
+      "h": 320,
+      "action": "look4",
+      "label": "看周围 · 小幅张望",
+      "stripIndex": 3,
+      "source": "看周围.png",
+      "trim": {
+        "x": 56,
+        "y": 18,
+        "w": 209,
+        "h": 286
+      }
+    },
+    {
+      "index": 5,
+      "column": 5,
+      "row": 0,
+      "x": 1600,
+      "y": 0,
+      "w": 320,
+      "h": 320,
+      "action": "lookUp",
+      "label": "抬头 · 低头到抬头",
+      "stripIndex": 0,
+      "source": "看周围1.png",
+      "trim": {
+        "x": 58,
+        "y": 33,
+        "w": 205,
+        "h": 271
+      }
+    },
+    {
+      "index": 6,
+      "column": 0,
+      "row": 1,
+      "x": 0,
+      "y": 320,
+      "w": 320,
+      "h": 320,
+      "action": "lookUp",
+      "label": "抬头 · 低头到抬头",
+      "stripIndex": 1,
+      "source": "看周围1.png",
+      "trim": {
+        "x": 58,
+        "y": 34,
+        "w": 204,
+        "h": 270
+      }
+    },
+    {
+      "index": 7,
+      "column": 1,
+      "row": 1,
+      "x": 320,
+      "y": 320,
+      "w": 320,
+      "h": 320,
+      "action": "lookUp",
+      "label": "抬头 · 低头到抬头",
+      "stripIndex": 2,
+      "source": "看周围1.png",
+      "trim": {
+        "x": 58,
+        "y": 41,
+        "w": 205,
+        "h": 263
+      }
+    },
+    {
+      "index": 8,
+      "column": 2,
+      "row": 1,
+      "x": 640,
+      "y": 320,
+      "w": 320,
+      "h": 320,
+      "action": "lookUp",
+      "label": "抬头 · 低头到抬头",
+      "stripIndex": 3,
+      "source": "看周围1.png",
+      "trim": {
+        "x": 58,
+        "y": 38,
+        "w": 203,
+        "h": 266
+      }
+    },
+    {
+      "index": 9,
+      "column": 3,
+      "row": 1,
+      "x": 960,
+      "y": 320,
+      "w": 320,
+      "h": 320,
+      "action": "lookUp",
+      "label": "抬头 · 低头到抬头",
+      "stripIndex": 4,
+      "source": "看周围1.png",
+      "trim": {
+        "x": 58,
+        "y": 31,
+        "w": 205,
+        "h": 273
+      }
+    },
+    {
+      "index": 10,
+      "column": 4,
+      "row": 1,
+      "x": 1280,
+      "y": 320,
+      "w": 320,
+      "h": 320,
+      "action": "lookUp",
+      "label": "抬头 · 低头到抬头",
+      "stripIndex": 5,
+      "source": "看周围1.png",
+      "trim": {
+        "x": 54,
+        "y": 27,
+        "w": 211,
+        "h": 277
+      }
+    },
+    {
+      "index": 11,
+      "column": 5,
+      "row": 1,
+      "x": 1600,
+      "y": 320,
+      "w": 320,
+      "h": 320,
+      "action": "lookUp",
+      "label": "抬头 · 低头到抬头",
+      "stripIndex": 6,
+      "source": "看周围1.png",
+      "trim": {
+        "x": 56,
+        "y": 24,
+        "w": 207,
+        "h": 280
+      }
+    },
+    {
+      "index": 12,
+      "column": 0,
+      "row": 2,
+      "x": 0,
+      "y": 640,
+      "w": 320,
+      "h": 320,
+      "action": "lookUp",
+      "label": "抬头 · 低头到抬头",
+      "stripIndex": 7,
+      "source": "看周围1.png",
+      "trim": {
+        "x": 60,
+        "y": 18,
+        "w": 201,
+        "h": 286
+      }
+    },
+    {
+      "index": 13,
+      "column": 1,
+      "row": 2,
+      "x": 320,
+      "y": 640,
+      "w": 320,
+      "h": 320,
+      "action": "lookDown",
+      "label": "低头 · 抬头到低头",
+      "stripIndex": 0,
+      "source": "看周围2.png",
+      "trim": {
+        "x": 60,
+        "y": 21,
+        "w": 201,
+        "h": 282
+      }
+    },
+    {
+      "index": 14,
+      "column": 2,
+      "row": 2,
+      "x": 640,
+      "y": 640,
+      "w": 320,
+      "h": 320,
+      "action": "lookDown",
+      "label": "低头 · 抬头到低头",
+      "stripIndex": 1,
+      "source": "看周围2.png",
+      "trim": {
+        "x": 60,
+        "y": 19,
+        "w": 201,
+        "h": 284
+      }
+    },
+    {
+      "index": 15,
+      "column": 3,
+      "row": 2,
+      "x": 960,
+      "y": 640,
+      "w": 320,
+      "h": 320,
+      "action": "lookDown",
+      "label": "低头 · 抬头到低头",
+      "stripIndex": 2,
+      "source": "看周围2.png",
+      "trim": {
+        "x": 60,
+        "y": 18,
+        "w": 200,
+        "h": 286
+      }
+    },
+    {
+      "index": 16,
+      "column": 4,
+      "row": 2,
+      "x": 1280,
+      "y": 640,
+      "w": 320,
+      "h": 320,
+      "action": "lookDown",
+      "label": "低头 · 抬头到低头",
+      "stripIndex": 3,
+      "source": "看周围2.png",
+      "trim": {
+        "x": 60,
+        "y": 18,
+        "w": 199,
+        "h": 285
+      }
+    },
+    {
+      "index": 17,
+      "column": 5,
+      "row": 2,
+      "x": 1600,
+      "y": 640,
+      "w": 320,
+      "h": 320,
+      "action": "lookDown",
+      "label": "低头 · 抬头到低头",
+      "stripIndex": 4,
+      "source": "看周围2.png",
+      "trim": {
+        "x": 59,
+        "y": 24,
+        "w": 202,
+        "h": 279
+      }
+    },
+    {
+      "index": 18,
+      "column": 0,
+      "row": 3,
+      "x": 0,
+      "y": 960,
+      "w": 320,
+      "h": 320,
+      "action": "lookDown",
+      "label": "低头 · 抬头到低头",
+      "stripIndex": 5,
+      "source": "看周围2.png",
+      "trim": {
+        "x": 60,
+        "y": 36,
+        "w": 201,
+        "h": 267
+      }
+    },
+    {
+      "index": 19,
+      "column": 1,
+      "row": 3,
+      "x": 320,
+      "y": 960,
+      "w": 320,
+      "h": 320,
+      "action": "lookDown",
+      "label": "低头 · 抬头到低头",
+      "stripIndex": 6,
+      "source": "看周围2.png",
+      "trim": {
+        "x": 58,
+        "y": 40,
+        "w": 203,
+        "h": 264
+      }
+    },
+    {
+      "index": 20,
+      "column": 2,
+      "row": 3,
+      "x": 640,
+      "y": 960,
+      "w": 320,
+      "h": 320,
+      "action": "lookDown",
+      "label": "低头 · 抬头到低头",
+      "stripIndex": 7,
+      "source": "看周围2.png",
+      "trim": {
+        "x": 57,
+        "y": 50,
+        "w": 206,
+        "h": 254
+      }
+    },
+    {
+      "index": 21,
+      "column": 3,
+      "row": 3,
+      "x": 960,
+      "y": 960,
+      "w": 320,
+      "h": 320,
+      "action": "eat",
+      "label": "吃饭 · 埋头吃粮",
+      "stripIndex": 0,
+      "source": "吃饭.png",
+      "trim": {
+        "x": 56,
+        "y": 28,
+        "w": 208,
+        "h": 276
+      }
+    },
+    {
+      "index": 22,
+      "column": 4,
+      "row": 3,
+      "x": 1280,
+      "y": 960,
+      "w": 320,
+      "h": 320,
+      "action": "eat",
+      "label": "吃饭 · 埋头吃粮",
+      "stripIndex": 1,
+      "source": "吃饭.png",
+      "trim": {
+        "x": 56,
+        "y": 55,
+        "w": 207,
+        "h": 249
+      }
+    },
+    {
+      "index": 23,
+      "column": 5,
+      "row": 3,
+      "x": 1600,
+      "y": 960,
+      "w": 320,
+      "h": 320,
+      "action": "eat",
+      "label": "吃饭 · 埋头吃粮",
+      "stripIndex": 2,
+      "source": "吃饭.png",
+      "trim": {
+        "x": 56,
+        "y": 63,
+        "w": 209,
+        "h": 241
+      }
+    },
+    {
+      "index": 24,
+      "column": 0,
+      "row": 4,
+      "x": 0,
+      "y": 1280,
+      "w": 320,
+      "h": 320,
+      "action": "eat",
+      "label": "吃饭 · 埋头吃粮",
+      "stripIndex": 3,
+      "source": "吃饭.png",
+      "trim": {
+        "x": 58,
+        "y": 18,
+        "w": 205,
+        "h": 286
+      }
+    },
+    {
+      "index": 25,
+      "column": 1,
+      "row": 4,
+      "x": 320,
+      "y": 1280,
+      "w": 320,
+      "h": 320,
+      "action": "eat",
+      "label": "吃饭 · 埋头吃粮",
+      "stripIndex": 4,
+      "source": "吃饭.png",
+      "trim": {
+        "x": 58,
+        "y": 19,
+        "w": 205,
+        "h": 285
+      }
+    },
+    {
+      "index": 26,
+      "column": 2,
+      "row": 4,
+      "x": 640,
+      "y": 1280,
+      "w": 320,
+      "h": 320,
+      "action": "eat",
+      "label": "吃饭 · 埋头吃粮",
+      "stripIndex": 5,
+      "source": "吃饭.png",
+      "trim": {
+        "x": 56,
+        "y": 48,
+        "w": 208,
+        "h": 256
+      }
+    },
+    {
+      "index": 27,
+      "column": 3,
+      "row": 4,
+      "x": 960,
+      "y": 1280,
+      "w": 320,
+      "h": 320,
+      "action": "play",
+      "label": "扑蝴蝶 · 起身扑击",
+      "stripIndex": 0,
+      "source": "扑蝴蝶.png",
+      "trim": {
+        "x": 62,
+        "y": 48,
+        "w": 195,
+        "h": 252
+      }
+    },
+    {
+      "index": 28,
+      "column": 4,
+      "row": 4,
+      "x": 1280,
+      "y": 1280,
+      "w": 320,
+      "h": 320,
+      "action": "play",
+      "label": "扑蝴蝶 · 起身扑击",
+      "stripIndex": 1,
+      "source": "扑蝴蝶.png",
+      "trim": {
+        "x": 35,
+        "y": 79,
+        "w": 250,
+        "h": 220
+      }
+    },
+    {
+      "index": 29,
+      "column": 5,
+      "row": 4,
+      "x": 1600,
+      "y": 1280,
+      "w": 320,
+      "h": 320,
+      "action": "play",
+      "label": "扑蝴蝶 · 起身扑击",
+      "stripIndex": 2,
+      "source": "扑蝴蝶.png",
+      "trim": {
+        "x": 26,
+        "y": 15,
+        "w": 267,
+        "h": 284
+      }
+    },
+    {
+      "index": 30,
+      "column": 0,
+      "row": 5,
+      "x": 0,
+      "y": 1600,
+      "w": 320,
+      "h": 320,
+      "action": "play",
+      "label": "扑蝴蝶 · 起身扑击",
+      "stripIndex": 3,
+      "source": "扑蝴蝶.png",
+      "trim": {
+        "x": 15,
+        "y": 4,
+        "w": 290,
+        "h": 244
+      }
+    },
+    {
+      "index": 31,
+      "column": 1,
+      "row": 5,
+      "x": 320,
+      "y": 1600,
+      "w": 320,
+      "h": 320,
+      "action": "play",
+      "label": "扑蝴蝶 · 起身扑击",
+      "stripIndex": 4,
+      "source": "扑蝴蝶.png",
+      "trim": {
+        "x": 30,
+        "y": 26,
+        "w": 260,
+        "h": 278
+      }
+    },
+    {
+      "index": 32,
+      "column": 2,
+      "row": 5,
+      "x": 640,
+      "y": 1600,
+      "w": 320,
+      "h": 320,
+      "action": "play",
+      "label": "扑蝴蝶 · 起身扑击",
+      "stripIndex": 5,
+      "source": "扑蝴蝶.png",
+      "trim": {
+        "x": 55,
+        "y": 16,
+        "w": 210,
+        "h": 286
+      }
+    }
+  ]
+}

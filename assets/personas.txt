@@ -8,6 +8,9 @@
 #   {in} 本轮输入 token    {out} 本轮输出 token   {cache} 缓存命中率
 #   {credit} 本轮积分      {calls} 本轮调用次数   {today} 今日积分
 #   {n} 轮次/数量          {h} 小时数             {name} 人格显示名
+#   {budget} 日预算        {pct} 日预算已用%      {month} 本月积分
+#   {mbudget} 月预算       {mpct} 月预算已用%
+# 单行文案建议 ≤24 个汉字等效宽度，超长会把气泡顶出窗口上沿。
 #
 # 触发 key 一览：
 #   firstMeet 首次使用        turnHigh 单轮输入异常    callsHigh 调用次数爆炸

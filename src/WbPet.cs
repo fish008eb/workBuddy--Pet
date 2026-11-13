@@ -33,6 +33,7 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
@@ -45,12 +46,18 @@ namespace WbPet
     public class PetWindow : Window
     {
         private static readonly Brush BgBrush = MakeBrush(0x1B, 0x1E, 0x26);
-        private static readonly Brush BorderBrushDark = MakeBrush(0x33, 0x39, 0x49);
+        private static readonly Brush BorderBrushDark = MakeBrush(0x3D, 0x46, 0x5C);
+        private static readonly Brush DividerBrush = MakeBrush(0x33, 0x3B, 0x4C);
+        private static readonly Brush TrackBrush = MakeBrush(0x42, 0x4A, 0x5E);
         private static readonly Brush ValueBrush = MakeBrush(0xED, 0xEF, 0xF5);
-        private static readonly Brush CaptionBrush = MakeBrush(0x6B, 0x73, 0x85);
+        private static readonly Brush TextBodyBrush = MakeBrush(0xC3, 0xCA, 0xD8);
+        private static readonly Brush CaptionBrush = MakeBrush(0x98, 0xA0, 0xB4);
         private static readonly Brush TitleBrush = MakeBrush(0x8A, 0x93, 0xA8);
-        private static readonly Brush TimeBrush = MakeBrush(0x5C, 0x64, 0x78);
+        private static readonly Brush TimeBrush = MakeBrush(0x98, 0xA0, 0xB4);
         private static readonly Brush EmotionBrush = MakeBrush(0xE8, 0xEA, 0xF0);
+        private static readonly Brush AccentGlowBrush = MakeBrush(0x2E, 0xE6, 0xC0);
+        private static readonly Brush MenuBgBrush = MakeBrush(0x20, 0x24, 0x2F);
+        private static readonly Brush MenuHoverBrush = MakeBrush(0x2A, 0x31, 0x42);
         private static readonly Brush OkBrush = MakeBrush(0x34, 0xD3, 0x99);
         private static readonly Brush WarnBrush = MakeBrush(0xFB, 0xBF, 0x24);
         private static readonly Brush OverBrush = MakeBrush(0xF8, 0x71, 0x71);
@@ -120,10 +127,27 @@ namespace WbPet
         private DateTime _lastSaveAt = DateTime.MinValue;
 
         private int _idx = 0;
+
+        // ---- atlas（雪碧图）皮肤：与逐帧皮肤互斥 ----
+        // _atlas != null 时 Source 由 CroppedBitmap 按状态/情绪给出，_frameTimer 必须停着
+        private PetAtlas _atlas;
+        private int _atlasSlot = -1;                       // 当前已贴到 _mascot 上的逻辑帧序号
+        private int _emoSlot = -1;                         // 情绪帧（一次性，到时回到状态帧）
+        private DateTime _emoSlotUntil = DateTime.MinValue;
+        // 序列动画：manifest 的 seq 给某个槽位配了多帧时，由 _atlasTimer 按帧间隔推进。
+        // 老图集没有 seq，槽位只有单帧，这个定时器全程停着，行为与之前完全一致。
+        private DispatcherTimer _atlasTimer;
+        private int _atlasPhase;
+
         private bool _firstLoad = true;
         private DateTime _lastWrite = DateTime.MinValue;
         private DateTime _tempUntil = DateTime.MinValue;
         private DateTime _hideUntil = DateTime.MinValue;
+        private DateTime _autoUntil = DateTime.MinValue;
+        private DateTime _footerUntil = DateTime.MinValue;
+        private bool _pendingShown;
+        private bool _topmostOn = true;
+        private string _pendingCommandFull = "";
 
         private Image _mascot;
         private Grid _bubble;
@@ -143,6 +167,14 @@ namespace WbPet
         private Border _budgetTrack;
         private Border _budgetFill;
         private TextBlock _footer;
+        private Border _pendingCard;
+        private TextBlock _pendingTitle;
+        private TextBlock _pendingTimer;
+        private TextBlock _pendingCommand;
+        private Border _pendingAction;
+        private Border _accentRail;
+        private Run _todaySessionsMain;
+        private Run _todaySessionsPct;
         private ScaleTransform _scale;
         private TranslateTransform _shift;
         private TranslateTransform _bob;
@@ -187,6 +219,37 @@ namespace WbPet
         private double _ctxPct;
         private CostWindow _costWindow;
 
+        /**
+         * 定位 assets 根目录。
+         *
+         * 为什么只兜 assets、不兜 baseDir：安装布局里 exe 与 assets 同级，直连即可命中；
+         * 但开发布局里 exe 在 src/、assets 在仓库根，两者不同级，直连会拿到不存在的
+         * src/assets，皮肤解析成 null，整个窗口空白。所以允许从 baseDir 向上找最多 3 级。
+         *
+         * 反过来，pet-state.txt / pet-events.txt / pet-bus.port 这些运行时文件**必须**
+         * 留在 exe 旁边：hook 是按 exe 目录写事件、写游标的，baseDir 一旦跟着上移，
+         * 面板和 hook 就会读写两个不同的文件，事件游标直接错乱。
+         */
+        private static string ResolveAssetsDir(string baseDir)
+        {
+            string direct = Path.Combine(baseDir, "assets");
+            try
+            {
+                if (File.Exists(Path.Combine(direct, "skins.json"))) { return direct; }
+
+                DirectoryInfo cursor = new DirectoryInfo(baseDir);
+                for (int i = 0; i < 3; i++)
+                {
+                    if (cursor.Parent == null) { break; }
+                    cursor = cursor.Parent;
+                    string probe = Path.Combine(cursor.FullName, "assets");
+                    if (File.Exists(Path.Combine(probe, "skins.json"))) { return probe; }
+                }
+            }
+            catch (Exception) { }
+            return direct;   // 都不命中就保持原行为，交给上层按「没有皮肤」处理
+        }
+
         private static Brush MakeBrush(byte r, byte g, byte b)
         {
             SolidColorBrush brush = new SolidColorBrush(Color.FromRgb(r, g, b));
@@ -198,7 +261,7 @@ namespace WbPet
         {
             _baseDir = baseDir;
             _dataFile = dataFile;
-            _assetsDir = Path.Combine(baseDir, "assets");
+            _assetsDir = ResolveAssetsDir(baseDir);
             _skinsDir = Path.Combine(_assetsDir, "skins");
             _catalogFile = Path.Combine(_assetsDir, "skins.json");
             _currentFile = Path.Combine(_skinsDir, "current.txt");
@@ -214,10 +277,10 @@ namespace WbPet
             _budgetFile = Path.Combine(baseDir, "pet-budget.txt");
             _portFile = Path.Combine(baseDir, "pet-bus.port");
 
-            // 480 而不是 448：加了「实时状态行」之后，长文案轮次里气泡会长高，
-            // 448 会把气泡顶出窗口上沿。窗口本身是透明的，多出的空白只是空气。
+            // 496 而不是 480：4 指标改竖排后气泡会长高，480 会把顶部切掉。
+            // 窗口本身是透明的，多出的空白只是空气；Top 按 Height 反算，底部不动。
             Width = 340;
-            Height = 480;
+            Height = 496;
             WindowStyle = WindowStyle.None;
             AllowsTransparency = true;
             Background = Brushes.Transparent;
@@ -234,6 +297,7 @@ namespace WbPet
 
             LoadPersonas();
             LoadState();
+            Topmost = _topmostOn;
             LoadSounds();
 
             _loadedSkin = ReadCurrentSkinId();
@@ -267,7 +331,7 @@ namespace WbPet
             _tail = new ShapePath();
             _tail.Fill = BgBrush;
             _tail.Stroke = BorderBrushDark;
-            _tail.StrokeThickness = 1.2;
+            _tail.StrokeThickness = 1;
             _tail.Data = Geometry.Parse("M 0,0 L 26,0 L 13,13 Z");
             _tail.HorizontalAlignment = HorizontalAlignment.Center;
             _tail.VerticalAlignment = VerticalAlignment.Bottom;
@@ -277,18 +341,19 @@ namespace WbPet
             _bubbleBody = new Border();
             _bubbleBody.Background = BgBrush;
             _bubbleBody.BorderBrush = BorderBrushDark;
-            _bubbleBody.BorderThickness = new Thickness(0.5);
+            _bubbleBody.BorderThickness = new Thickness(1);
             _bubbleBody.CornerRadius = new CornerRadius(16);
-            _bubbleBody.Padding = new Thickness(15, 11, 15, 12);
-            _bubbleBody.Width = 288;
+            _bubbleBody.Padding = new Thickness(15, 10, 15, 10);
+            _bubbleBody.Width = 290;
 
+            // 一次投影覆盖 body + tail，避免尾巴尖出现双影/接缝
             DropShadowEffect shadow = new DropShadowEffect();
             shadow.BlurRadius = 14;
             shadow.ShadowDepth = 4;
             shadow.Direction = 270;
             shadow.Opacity = 0.32;
             shadow.Color = Colors.Black;
-            _bubbleBody.Effect = shadow;
+            _bubble.Effect = shadow;
 
             StackPanel inner = new StackPanel();
 
@@ -300,13 +365,23 @@ namespace WbPet
             who.HorizontalAlignment = HorizontalAlignment.Left;
             who.VerticalAlignment = VerticalAlignment.Center;
 
+            // 2x14 rail + 6px 圆点共同承载情绪；卡片整圈描边保持中性，避免整卡闪烁
+            _accentRail = new Border();
+            _accentRail.Width = 2;
+            _accentRail.Height = 14;
+            _accentRail.CornerRadius = new CornerRadius(1);
+            _accentRail.Margin = new Thickness(0, 0, 6, 0);
+            _accentRail.VerticalAlignment = VerticalAlignment.Center;
+            _accentRail.Background = new SolidColorBrush(Color.FromRgb(0x7C, 0x88, 0x9E));
+            who.Children.Add(_accentRail);
+
             _dot = new Border();
-            _dot.Width = 5;
-            _dot.Height = 5;
-            _dot.CornerRadius = new CornerRadius(2.5);
+            _dot.Width = 6;
+            _dot.Height = 6;
+            _dot.CornerRadius = new CornerRadius(3);
             _dot.Margin = new Thickness(0, 0, 6, 0);
             _dot.VerticalAlignment = VerticalAlignment.Center;
-            _dot.Background = new SolidColorBrush(Color.FromRgb(0x6B, 0x7B, 0x9E));
+            _dot.Background = new SolidColorBrush(Color.FromRgb(0x7C, 0x88, 0x9E));
             who.Children.Add(_dot);
 
             _title = new TextBlock();
@@ -332,30 +407,86 @@ namespace WbPet
 
             // 实时状态行：只在有活动时出现，平时不占高度
             _stateLine = new TextBlock();
-            _stateLine.FontSize = 10.5;
+            _stateLine.FontSize = 12;
             _stateLine.Foreground = TitleBrush;
-            _stateLine.Margin = new Thickness(0, 4, 0, 0);
+            _stateLine.Margin = new Thickness(0, 3, 0, 0);
             _stateLine.Visibility = Visibility.Collapsed;
             TextOptions.SetTextFormattingMode(_stateLine, TextFormattingMode.Display);
             inner.Children.Add(_stateLine);
 
             // emotion line: the main visual of the bubble
             _emotionText = new TextBlock();
-            _emotionText.FontSize = 15;
+            _emotionText.FontSize = 16;
+            _emotionText.FontWeight = FontWeights.SemiBold;
             _emotionText.Foreground = EmotionBrush;
             _emotionText.TextWrapping = TextWrapping.Wrap;
-            _emotionText.Margin = new Thickness(0, 8, 0, 12);
+            _emotionText.Margin = new Thickness(0, 6, 0, 10);
             _emotionText.MaxHeight = 70;
             _emotionText.TextTrimming = TextTrimming.CharacterEllipsis;
             _emotionText.Visibility = Visibility.Collapsed;
             TextOptions.SetTextFormattingMode(_emotionText, TextFormattingMode.Display);
             inner.Children.Add(_emotionText);
 
+            // 授权卡与情绪文案共用同一布局槽位：同一时刻只显示其中一个。
+            // 独立控件后靠 _pendingShown 判过期，不再依赖文案前缀。
+            _pendingCard = new Border();
+            _pendingCard.Visibility = Visibility.Collapsed;
+            StackPanel pendingBody = new StackPanel();
+
+            Grid pendingHead = new Grid();
+            _pendingTitle = new TextBlock();
+            _pendingTitle.FontSize = 13;
+            _pendingTitle.FontWeight = FontWeights.Medium;
+            _pendingTitle.Foreground = OverBrush;
+            pendingHead.Children.Add(_pendingTitle);
+            _pendingTimer = new TextBlock();
+            _pendingTimer.FontSize = 10.5;
+            _pendingTimer.Foreground = CaptionBrush;
+            _pendingTimer.MinWidth = 32;
+            _pendingTimer.TextAlignment = TextAlignment.Right;
+            _pendingTimer.HorizontalAlignment = HorizontalAlignment.Right;
+            pendingHead.Children.Add(_pendingTimer);
+            pendingBody.Children.Add(pendingHead);
+
+            _pendingCommand = new TextBlock();
+            _pendingCommand.FontSize = 11;
+            _pendingCommand.Foreground = TextBodyBrush;
+            _pendingCommand.TextTrimming = TextTrimming.CharacterEllipsis;
+            _pendingCommand.TextWrapping = TextWrapping.NoWrap;
+            _pendingCommand.Margin = new Thickness(0, 4, 0, 0);
+            _pendingCommand.Visibility = Visibility.Collapsed;
+            pendingBody.Children.Add(_pendingCommand);
+
+            _pendingAction = new Border();
+            _pendingAction.Background = MenuBgBrush;
+            _pendingAction.CornerRadius = new CornerRadius(4);
+            _pendingAction.Padding = new Thickness(6, 3, 6, 3);
+            _pendingAction.Margin = new Thickness(0, 4, 0, 10);
+            _pendingAction.HorizontalAlignment = HorizontalAlignment.Left;
+            _pendingAction.Cursor = Cursors.Hand;
+            TextBlock actionText = new TextBlock();
+            actionText.Text = "\u2192 \u70B9\u6211\u5207\u56DE WorkBuddy";
+            actionText.FontSize = 11;
+            actionText.FontWeight = FontWeights.Medium;
+            actionText.Foreground = AccentGlowBrush;
+            _pendingAction.Child = actionText;
+            _pendingAction.MouseLeftButtonDown += delegate(object s, MouseButtonEventArgs e)
+            {
+                e.Handled = true;
+                FocusFromPendingCard();
+            };
+            _pendingAction.MouseEnter += delegate { _pendingAction.Background = MenuHoverBrush; };
+            _pendingAction.MouseLeave += delegate { _pendingAction.Background = MenuBgBrush; };
+            pendingBody.Children.Add(_pendingAction);
+
+            _pendingCard.Child = pendingBody;
+            inner.Children.Add(_pendingCard);
+
             inner.Children.Add(MakeDivider());
 
             // today's credits, the largest number on the card
             Grid today = new Grid();
-            today.Margin = new Thickness(0, 11, 0, 12);
+            today.Margin = new Thickness(0, 10, 0, 10);
 
             StackPanel todayLeft = new StackPanel();
             todayLeft.Orientation = Orientation.Horizontal;
@@ -364,7 +495,7 @@ namespace WbPet
 
             TextBlock todayCap = new TextBlock();
             todayCap.Text = "\u4ECA\u65E5";
-            todayCap.FontSize = 10;
+            todayCap.FontSize = 10.5;
             todayCap.Foreground = CaptionBrush;
             todayCap.VerticalAlignment = VerticalAlignment.Bottom;
             todayCap.Margin = new Thickness(0, 0, 6, 4);
@@ -373,7 +504,7 @@ namespace WbPet
 
             _todayValue = new TextBlock();
             _todayValue.Text = "-";
-            _todayValue.FontSize = 23;
+            _todayValue.FontSize = 24;
             _todayValue.FontWeight = FontWeights.Medium;
             _todayValue.Foreground = ValueBrush;
             _todayValue.VerticalAlignment = VerticalAlignment.Bottom;
@@ -383,7 +514,7 @@ namespace WbPet
 
             TextBlock todayUnit = new TextBlock();
             todayUnit.Text = "\u79EF\u5206";
-            todayUnit.FontSize = 10;
+            todayUnit.FontSize = 10.5;
             todayUnit.Foreground = CaptionBrush;
             todayUnit.VerticalAlignment = VerticalAlignment.Bottom;
             todayUnit.Margin = new Thickness(0, 0, 0, 4);
@@ -411,7 +542,7 @@ namespace WbPet
             _budgetTrack = new Border();
             _budgetTrack.Height = 3;
             _budgetTrack.CornerRadius = new CornerRadius(1.5);
-            _budgetTrack.Background = MakeBrush(0x26, 0x2B, 0x36);
+            _budgetTrack.Background = TrackBrush;
             budgetBar.Children.Add(_budgetTrack);
 
             _budgetFill = new Border();
@@ -424,25 +555,25 @@ namespace WbPet
 
             inner.Children.Add(budgetBar);
 
-            // this turn's metrics: one compact row, icon + value only
+            // 本轮指标：4 列竖排「标签 + 数值」，核心数据常驻，不依赖 ToolTip
             Grid metrics = new Grid();
-            metrics.Margin = new Thickness(0, 10, 0, 0);
+            metrics.Margin = new Thickness(0, 6, 0, 0);
             for (int i = 0; i < 4; i++) { metrics.ColumnDefinitions.Add(new ColumnDefinition()); }
 
-            _turnIn = AddMetric(metrics, 0, "M8,2 L14,9 L10.5,9 L10.5,14 L5.5,14 L5.5,9 L2,9 Z", "#5EEAD4", HorizontalAlignment.Left, "\u8F93\u5165 token");
-            _turnOut = AddMetric(metrics, 1, "M8,14 L2,7 L5.5,7 L5.5,2 L10.5,2 L10.5,7 L14,7 Z", "#A78BFA", HorizontalAlignment.Center, "\u8F93\u51FA token");
-            _cache = AddMetric(metrics, 2, "M9.5,1 L3,9 L7,9 L6.5,15 L13,7 L9,7 Z", "#FBBF24", HorizontalAlignment.Center, "\u7F13\u5B58\u547D\u4E2D\u7387");
-            _credit = AddMetric(metrics, 3, "M8,2 L13,8 L8,14 L3,8 Z", "#34D399", HorizontalAlignment.Right, "\u672C\u8F6E\u79EF\u5206");
+            _turnIn = AddMetric(metrics, 0, "\u8F93\u5165", "\u8F93\u5165 token\uFF08\u542B\u5DE5\u5177\u8C03\u7528\u91CD\u53D1\uFF09");
+            _turnOut = AddMetric(metrics, 1, "\u8F93\u51FA", "\u8F93\u51FA token");
+            _cache = AddMetric(metrics, 2, "\u7F13\u5B58", "\u6309 token \u52A0\u6743\u7684\u7F13\u5B58\u547D\u4E2D\u7387");
+            _credit = AddMetric(metrics, 3, "\u79EF\u5206", "\u672C\u8F6E\u79EF\u5206");
 
             inner.Children.Add(metrics);
 
             // footer only carries transient messages such as skin switching progress
             _footer = new TextBlock();
-            _footer.FontSize = 10;
+            _footer.FontSize = 10.5;
             _footer.Foreground = CaptionBrush;
             _footer.HorizontalAlignment = HorizontalAlignment.Center;
             _footer.TextWrapping = TextWrapping.Wrap;
-            _footer.Margin = new Thickness(0, 7, 0, 0);
+            _footer.Margin = new Thickness(0, 5, 0, 0);
             _footer.Visibility = Visibility.Collapsed;
             TextOptions.SetTextFormattingMode(_footer, TextFormattingMode.Display);
             inner.Children.Add(_footer);
@@ -487,35 +618,34 @@ namespace WbPet
         {
             Border divider = new Border();
             divider.Height = 1;
-            divider.Background = MakeBrush(0x26, 0x2B, 0x36);
+            divider.Background = DividerBrush;
             return divider;
         }
 
-        /** 本轮指标：图标 + 数值横排一枚，鼠标悬停显示含义 */
-        private TextBlock AddMetric(Grid grid, int col, string iconPath, string color, HorizontalAlignment align, string tip)
+        /** 本轮指标：标签在上、数值在下，竖排避免横排超出 64px 列宽 */
+        private TextBlock AddMetric(Grid grid, int col, string label, string tip)
         {
             StackPanel cell = new StackPanel();
-            cell.Orientation = Orientation.Horizontal;
-            cell.HorizontalAlignment = align;
-            cell.VerticalAlignment = VerticalAlignment.Center;
-            cell.ToolTip = tip;
+            cell.Margin = new Thickness(4, 0, 4, 0);
+            cell.ToolTip = MakeDarkToolTip(cell, tip);
             Grid.SetColumn(cell, col);
 
-            ShapePath icon = new ShapePath();
-            icon.Data = Geometry.Parse(iconPath);
-            icon.Stretch = Stretch.Uniform;
-            icon.Width = 9;
-            icon.Height = 9;
-            icon.VerticalAlignment = VerticalAlignment.Center;
-            icon.Margin = new Thickness(0, 0, 4, 0);
-            icon.Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString(color));
-            cell.Children.Add(icon);
+            TextBlock cap = new TextBlock();
+            cap.Text = label;
+            cap.FontSize = 10.5;
+            cap.Foreground = CaptionBrush;
+            cap.TextWrapping = TextWrapping.NoWrap;
+            cap.Margin = new Thickness(0, 0, 0, 2);
+            TextOptions.SetTextFormattingMode(cap, TextFormattingMode.Display);
+            cell.Children.Add(cap);
 
             TextBlock value = new TextBlock();
             value.Text = "-";
-            value.FontSize = 11;
-            value.Foreground = MakeBrush(0x98, 0xA0, 0xB4);
-            value.VerticalAlignment = VerticalAlignment.Center;
+            value.FontSize = 12;
+            value.FontWeight = FontWeights.Medium;
+            value.Foreground = ValueBrush;
+            value.TextWrapping = TextWrapping.NoWrap;
+            value.TextTrimming = TextTrimming.CharacterEllipsis;
             TextOptions.SetTextFormattingMode(value, TextFormattingMode.Display);
             cell.Children.Add(value);
 
@@ -523,12 +653,30 @@ namespace WbPet
             return value;
         }
 
+        /** 暗色 ToolTip：属性级设置，避免深夜暗卡上弹系统白底造成眩光 */
+        private static ToolTip MakeDarkToolTip(FrameworkElement owner, string text)
+        {
+            ToolTip tip = new ToolTip();
+            tip.Content = text;
+            tip.Background = MenuBgBrush;
+            tip.Foreground = TextBodyBrush;
+            tip.BorderBrush = BorderBrushDark;
+            tip.BorderThickness = new Thickness(1);
+            tip.FontSize = 12;
+            tip.Padding = new Thickness(8, 6, 8, 6);
+            tip.HasDropShadow = false;
+            ToolTipService.SetInitialShowDelay(owner, 300);
+            ToolTipService.SetShowDuration(owner, 8000);
+            ToolTipService.SetHasDropShadow(owner, false);
+            return tip;
+        }
+
         private ContextMenu BuildMenu()
         {
             ContextMenu menu = new ContextMenu();
 
             MenuItem refresh = new MenuItem();
-            refresh.Header = "Refresh";
+            refresh.Header = "\u5237\u65B0\u6570\u636E";
             refresh.Click += delegate { UpdatePanel(); };
             menu.Items.Add(refresh);
 
@@ -548,6 +696,8 @@ namespace WbPet
             cost.Header = "\u9879\u76EE\u6210\u672C\u2026";
             cost.Click += delegate { OpenCostWindow(); };
             menu.Items.Add(cost);
+
+            menu.Items.Add(new Separator());
 
             // 日预算：直接写 pet-budget.txt，turn-usage.js 每轮读它判阈值
             MenuItem budgetRoot = new MenuItem();
@@ -616,9 +766,9 @@ namespace WbPet
             // verbosity
             MenuItem verbRoot = new MenuItem();
             verbRoot.Header = "\u5520\u53E8\u7A0B\u5EA6";
-            verbRoot.Items.Add(MakeVerbosityItem("minimal", "\u6781\u7B80"));
             verbRoot.Items.Add(MakeVerbosityItem("normal", "\u514B\u5236\uFF08\u9ED8\u8BA4\uFF09"));
             verbRoot.Items.Add(MakeVerbosityItem("chatty", "\u8BDD\u75E8"));
+            verbRoot.Items.Add(MakeVerbosityItem("minimal", "\u6781\u7B80"));
             menu.Items.Add(verbRoot);
 
             // sound
@@ -663,7 +813,7 @@ namespace WbPet
             menu.Items.Add(mute);
 
             MenuItem hide = new MenuItem();
-            hide.Header = "Hide for 10 min";
+            hide.Header = "\u9690\u85CF 10 \u5206\u949F";
             hide.Click += delegate
             {
                 _hideUntil = DateTime.Now.AddMinutes(10);
@@ -671,14 +821,78 @@ namespace WbPet
             };
             menu.Items.Add(hide);
 
+            MenuItem topmost = new MenuItem();
+            topmost.Header = "\u7F6E\u9876\u663E\u793A";
+            topmost.IsCheckable = true;
+            topmost.IsChecked = _topmostOn;
+            topmost.Click += delegate
+            {
+                _topmostOn = !_topmostOn;
+                Topmost = _topmostOn;
+                topmost.IsChecked = _topmostOn;
+                _lastSaveAt = DateTime.MinValue;
+                SaveState();
+            };
+            menu.Items.Add(topmost);
+
             menu.Items.Add(new Separator());
 
             MenuItem exit = new MenuItem();
-            exit.Header = "Exit";
+            exit.Header = "\u9000\u51FA";
             exit.Click += delegate { Close(); };
             menu.Items.Add(exit);
 
+            // 系统 Aero2 模板硬编码悬停色/勾选 glyph/分隔线，属性层拿不到，
+            // 因此采用属性级暗色化 + 文本前缀承担选中态，接受系统悬停色。
+            menu.Opened += delegate { RefreshMenuChecks(menu); };
+            StyleMenu(menu);
             return menu;
+        }
+
+        private static void StyleMenu(ContextMenu menu)
+        {
+            menu.Background = MenuBgBrush;
+            menu.Foreground = TextBodyBrush;
+            menu.BorderBrush = BorderBrushDark;
+            menu.BorderThickness = new Thickness(1);
+            menu.FontSize = 12;
+            StyleMenuItems(menu.Items);
+        }
+
+        private static void StyleMenuItems(ItemCollection items)
+        {
+            foreach (object o in items)
+            {
+                MenuItem mi = o as MenuItem;
+                if (mi == null) { continue; }
+                mi.Background = Brushes.Transparent;
+                mi.Foreground = TextBodyBrush;
+                mi.FontSize = 12;
+                mi.Height = 28;
+                StyleMenuItems(mi.Items);
+            }
+        }
+
+        /** 选中态用「● 」文本前缀：跨主题可见、读屏可处理 */
+        private static void RefreshMenuChecks(ContextMenu menu)
+        {
+            RefreshChecks(menu.Items);
+        }
+
+        private static void RefreshChecks(ItemCollection items)
+        {
+            foreach (object o in items)
+            {
+                MenuItem mi = o as MenuItem;
+                if (mi == null) { continue; }
+                string h = mi.Header as string;
+                if (h != null)
+                {
+                    string bare = h.StartsWith("\u25CF ") ? h.Substring(2) : h;
+                    mi.Header = (mi.IsChecked ? "\u25CF " : "") + bare;
+                }
+                RefreshChecks(mi.Items);
+            }
         }
 
         // ---------- budget / summary ----------
@@ -708,7 +922,7 @@ namespace WbPet
                 }
                 item.IsChecked = true;
                 if (monthly) { SetBudget(value, _budgetDaily); }
-                else { SetBudget(_budgetDaily, value); }
+                else { SetBudget(_budgetMonthly, value); }
             };
             return item;
         }
@@ -752,6 +966,11 @@ namespace WbPet
             _budgetPct = _budgetDaily > 0 ? (_todayCredit / _budgetDaily) * 100 : 0;
             _monthPct = _budgetMonthly > 0 ? (_monthCredit / _budgetMonthly) * 100 : 0;
             UpdateBudgetUi();
+            // 设置变更必须可见：用户才有机会发现月预算被误改
+            _footer.Text = "\u9884\u7B97\u5DF2\u66F4\u65B0 \u00B7 \u65E5 " + _budgetDaily.ToString("0")
+                + " / \u6708 " + _budgetMonthly.ToString("0") + " \u79EF\u5206";
+            _footer.Visibility = Visibility.Visible;
+            _footerUntil = DateTime.Now.AddSeconds(4);
             ShowBubbleFor(3);
         }
 
@@ -809,7 +1028,8 @@ namespace WbPet
                 win.Closed += delegate { _costWindow = null; };
                 // 先粗摆一个位置，CostWindow 在 Loaded 里按真实高度再钳一次
                 win.Left = Left - 400;
-                win.Top = Top + 40;
+                // 窗口加高 16px 后 Top 上移，粗摆值同步补偿，保持成本卡屏幕位置不变
+                win.Top = Top + 56;
                 _costWindow = win;
                 win.Show();
             }
@@ -1057,11 +1277,26 @@ namespace WbPet
             return null;
         }
 
+        /**
+         * 皮肤加载的唯一入口，两种形态互斥：
+         *   manifest 里 kind=atlas  → 单张雪碧图 + CroppedBitmap 按状态取帧（团团 / 可可用这条）
+         *   manifest 里没有 kind    → 目录内逐帧 PNG + delays.txt 轮播（官方网络形象等旧契约，保持不变）
+         * 切肤时必须先把两种状态都清干净：残留的 _frameTimer 会把旧帧盖到新 Source 上，
+         * 残留的 _emoSlot 会让新角色一上来就摆着上一只的表情。
+         */
         private void LoadFrames(string dir)
         {
+            _atlas = null;
+            _atlasSlot = -1;
+            _emoSlot = -1;
+            _emoSlotUntil = DateTime.MinValue;
+            _atlasPhase = 0;
+            if (_atlasTimer != null) { _atlasTimer.Stop(); }
             _frames.Clear();
             _delays.Clear();
             _idx = 0;
+
+            if (_frameTimer != null && _frameTimer.IsEnabled) { _frameTimer.Stop(); }
 
             if (dir == null)
             {
@@ -1071,6 +1306,14 @@ namespace WbPet
 
             try
             {
+                string manifestFile = Path.Combine(dir, "manifest.json");
+                string manifestRaw = File.Exists(manifestFile) ? File.ReadAllText(manifestFile) : "";
+                if (JsonString(manifestRaw, "kind") == "atlas")
+                {
+                    LoadAtlasSkin(dir, manifestRaw);
+                    return;
+                }
+
                 string delayFile = Path.Combine(dir, "delays.txt");
                 if (File.Exists(delayFile))
                 {
@@ -1095,6 +1338,9 @@ namespace WbPet
                     _frames.Add(bmp);
                 }
 
+                _mascot.Width = 190;    // 从 atlas 切回逐帧时复位
+                _mascot.Height = 208;
+
                 if (_frames.Count > 0)
                 {
                     _mascot.Source = _frames[0];
@@ -1103,8 +1349,243 @@ namespace WbPet
                         _frameTimer.Start();
                     }
                 }
+                else
+                {
+                    _mascot.Source = null;
+                }
             }
             catch (Exception) { }
+        }
+
+        /**
+         * atlas 皮肤加载：image 按 manifest 所在目录解析（相对路径），
+         * 两只角色共用同一张图，所以仓库和发布包里都只存一份 1.65MB 的 PNG。
+         * 出错只影响形象，不影响面板：置空 Source 并落盘日志。
+         */
+        private void LoadAtlasSkin(string dir, string raw)
+        {
+            try
+            {
+                string imageRel = JsonString(raw, "image");
+                if (imageRel.Length == 0) { throw new ArgumentException("manifest 缺少 image 字段"); }
+
+                string imagePath = Path.GetFullPath(Path.Combine(dir, imageRel));
+                int cell = JsonInt(raw, "cell", 256);
+                int columns = JsonInt(raw, "columns", 8);
+                int rows = JsonInt(raw, "rows", 4);
+                int baseIndex = JsonInt(raw, "base", 0);
+                double width = JsonInt(raw, "w", 200);
+                double height = JsonInt(raw, "h", 200);
+
+                // 可选 seq：给槽位配「帧序号列表@帧间隔」。没有这个字段的老图集
+                // 依旧是一槽一帧，下面的动画定时器就不会启动。
+                Dictionary<int, int[]> seq;
+                Dictionary<int, int> seqMs;
+                ParseSeq(raw, out seq, out seqMs);
+
+                _atlas = PetAtlas.Load(imagePath, cell, columns, rows, baseIndex, seq, seqMs);
+
+                _mascot.Width = width;
+                _mascot.Height = height;
+
+                int slot = AtlasSlotForState(_shownState);
+                _atlasSlot = slot;
+                ApplyAtlasSource(slot, true);
+
+                // 刚启动时 state 与 _shownState 都是 idle，RenderRunState 的「状态变了」分支
+                // 不会执行，SetBob 也就不会被调用——atlas 形象会是一张完全静止的贴图。
+                // 这里补一次呼吸动画的建立（切肤路径同理，见 _skinTimer.Tick）。
+                SetBob(_shownState);
+            }
+            catch (Exception ex)
+            {
+                _atlas = null;
+                _atlasSlot = -1;
+                _mascot.Source = null;
+                LogError("LoadAtlasSkin", ex);
+            }
+        }
+
+        /** 项目一贯不引 JSON 库，manifest 里只取几个标量字段，正则足够 */
+        private static string JsonString(string raw, string key)        {
+            if (string.IsNullOrEmpty(raw) || string.IsNullOrEmpty(key)) { return ""; }
+            Match m = Regex.Match(raw, "\"" + Regex.Escape(key) + "\"\\s*:\\s*\"([^\"]*)\"");
+            return m.Success ? m.Groups[1].Value : "";
+        }
+
+        private static int JsonInt(string raw, string key, int fallback)
+        {
+            if (string.IsNullOrEmpty(raw) || string.IsNullOrEmpty(key)) { return fallback; }
+            Match m = Regex.Match(raw, "\"" + Regex.Escape(key) + "\"\\s*:\\s*(-?[0-9]+)");
+            int value;
+            if (m.Success && int.TryParse(m.Groups[1].Value, out value)) { return value; }
+            return fallback;
+        }
+
+        /**
+         * manifest 的可选 seq 段：槽位 → "帧序号,帧序号@帧间隔"。
+         * 例如 "1": "21,22,23@260" 表示槽位 1 依次播 21/22/23 三帧，每帧 260ms。
+         * 用这种扁平格式而不是嵌套对象，是为了继续用正则解析、不引 JSON 库。
+         * 没有 seq 的图集（团团 / 可可）解析结果为空字典，动画层自动不启用。
+         */
+        private static void ParseSeq(string raw, out Dictionary<int, int[]> seq, out Dictionary<int, int> seqMs)
+        {
+            seq = new Dictionary<int, int[]>();
+            seqMs = new Dictionary<int, int>();
+            if (string.IsNullOrEmpty(raw)) { return; }
+
+            MatchCollection ms = Regex.Matches(raw, "\"(\\d{1,2})\"\\s*:\\s*\"([0-9, @]{1,240})\"");
+            foreach (Match m in ms)
+            {
+                int slot;
+                if (!int.TryParse(m.Groups[1].Value, out slot) || slot < 0 || slot >= 16) { continue; }
+
+                string spec = m.Groups[2].Value;
+                int interval = 260;
+                int at = spec.IndexOf('@');
+                if (at >= 0)
+                {
+                    int v;
+                    if (int.TryParse(spec.Substring(at + 1).Trim(), out v) && v > 0) { interval = v; }
+                    spec = spec.Substring(0, at);
+                }
+
+                List<int> list = new List<int>();
+                foreach (string part in spec.Split(','))
+                {
+                    int idx;
+                    if (int.TryParse(part.Trim(), out idx) && idx >= 0) { list.Add(idx); }
+                }
+                if (list.Count == 0) { continue; }
+
+                seq[slot] = list.ToArray();
+                seqMs[slot] = interval;
+            }
+        }
+
+        /** 状态 → 逻辑帧序号（0–15），与素材对应说明.md 的表格一一对应 */
+        private static int AtlasSlotForState(string state)
+        {
+            switch (state)
+            {
+                case "thinking": return 0;
+                case "working": return 1;
+                case "juggling": return 2;
+                case "compacting": return 3;
+                case "error": return 4;
+                case "done": return 5;
+                case "blocked": return 6;
+                case "sleeping": return 7;
+                case "attention": return 8;
+                default: return 15;   // idle / 未知 → calm
+            }
+        }
+
+        /**
+         * 情绪 → 逻辑帧序号（9–15），未知返回 -1 表示「这次不给表情帧」。
+         * calm 故意不单独占帧：它就是 idle 的默认帧（15），
+         * 真给了反而会在时限内把 thinking / working 的帧盖成「平静」。
+         */
+        private static int AtlasSlotForEmotion(string emotion)
+        {
+            switch (emotion)
+            {
+                case "happy": return 9;
+                case "proud": return 10;
+                case "surprised": return 11;
+                case "worried": return 12;
+                case "tender": return 13;
+                case "sleepy": return 14;
+                default: return -1;
+            }
+        }
+
+        /** 打断型状态优先级最高，必须压过一次性情绪帧（见素材说明的分层规则） */
+        private static bool IsInterruptState(string state)
+        {
+            return state == "error" || state == "blocked" || state == "attention";
+        }
+
+        /**
+         * 状态帧 / 情绪帧的仲裁：
+         *   1. 打断型状态最优先，情绪帧不许盖它；
+         *   2. 情绪帧在 _emoSlotUntil 之前有效，到点自动回到状态帧；
+         *   3. 休眠且 idle 时显示 sleeping 帧。
+         * 每 500ms 被 RenderRunState 调一次，所以靠 slot 比较去抖——重复赋值会白触发重绘。
+         */
+        private void ApplyPetFrame()
+        {
+            if (_atlas == null) { return; }   // 逐帧皮肤走 _frameTimer，这里什么都不做
+
+            DateTime now = DateTime.Now;
+            int slot;
+            if (!IsInterruptState(_shownState) && _emoSlot >= 0 && now < _emoSlotUntil)
+            {
+                slot = _emoSlot;
+            }
+            else if (_sleepMode && _shownState == "idle")
+            {
+                slot = 7;
+            }
+            else
+            {
+                slot = AtlasSlotForState(_shownState);
+            }
+
+            if (slot == _atlasSlot && _mascot.Source != null) { return; }
+
+            _atlasSlot = slot;
+            ApplyAtlasSource(slot, true);
+        }
+
+        /**
+         * 把某个逻辑槽位贴到 _mascot 上。
+         * 槽位只有单帧时就是一张静态图（老图集行为）；有多帧时从第 0 帧起播，
+         * 并启动 _atlasTimer 按 manifest 给的间隔往后走。
+         * restart=false 只在定时器推进内部使用，保留当前 phase。
+         */
+        private void ApplyAtlasSource(int slot, bool restart)
+        {
+            if (_atlas == null) { return; }
+            if (restart) { _atlasPhase = 0; }
+
+            int count = _atlas.SeqCount(slot);
+            if (count <= 1)
+            {
+                _atlasPhase = 0;
+                _mascot.Source = _atlas.GetFrame(slot, 0);
+                if (_atlasTimer != null) { _atlasTimer.Stop(); }
+                return;
+            }
+
+            _mascot.Source = _atlas.GetFrame(slot, _atlasPhase);
+            StartAtlasTimer(_atlas.SeqMs(slot));
+        }
+
+        /**
+         * 帧间隔复用 _runSpeed：执行工具时吃得快、思考时张望得慢，
+         * 和时间轴上的运动语言保持一致；休眠时整体放慢，别在半夜抽动。
+         */
+        private void StartAtlasTimer(int baseMs)
+        {
+            if (_atlasTimer == null) { return; }
+            double ms = baseMs * (_runSpeed > 0 ? _runSpeed : 1.0);
+            if (_sleepMode) { ms *= 2.2; }
+            if (ms < 45) { ms = 45; }
+            _atlasTimer.Interval = TimeSpan.FromMilliseconds(ms);
+            if (!_atlasTimer.IsEnabled) { _atlasTimer.Start(); }
+        }
+
+        private void OnAtlasTick()
+        {
+            if (_atlas == null || _atlasTimer == null) { if (_atlasTimer != null) { _atlasTimer.Stop(); } return; }
+
+            int count = _atlas.SeqCount(_atlasSlot);
+            if (count <= 1) { _atlasTimer.Stop(); return; }
+
+            _atlasPhase = (_atlasPhase + 1) % count;
+            _mascot.Source = _atlas.GetFrame(_atlasSlot, _atlasPhase);
+            StartAtlasTimer(_atlas.SeqMs(_atlasSlot));
         }
 
         private List<string[]> ReadCatalog()
@@ -1255,7 +1736,9 @@ namespace WbPet
 
             if (!AllowPlay(ev)) { return; }
 
-            if (IsPointerOverPanel())
+            // 预算超支 / 数据降级 / 等待授权不被悬停挂起，必须立刻可见
+            bool urgent = ev.Pri >= 3 || _busState == "blocked";
+            if (IsPointerOverPanel() && !urgent)
             {
                 _pendingEvent = ev;
                 _pendingUntil = DateTime.Now.AddSeconds(60);
@@ -1272,7 +1755,7 @@ namespace WbPet
 
             if (ev.Pri < 3)
             {
-                if (_lastBubbleAt != DateTime.MinValue && (now - _lastBubbleAt).TotalSeconds < 45) { return false; }
+                if (_verbosity != "chatty" && _lastBubbleAt != DateTime.MinValue && (now - _lastBubbleAt).TotalSeconds < 45) { return false; }
 
                 DateTime lastSame;
                 if (_emoCool.TryGetValue(ev.Emotion, out lastSame) && (now - lastSame).TotalMinutes < 3) { return false; }
@@ -1293,29 +1776,62 @@ namespace WbPet
 
             ApplyAccent(ev.Accent);
             _title.Text = PersonaName();
+            _pendingCard.Visibility = Visibility.Collapsed;
+            _pendingShown = false;
             _emotionText.Text = ev.Text;
             _emotionText.Visibility = Visibility.Visible;
             _tempUntil = now.AddSeconds(Math.Max(3, ev.DurSec));
 
             PlayMotion(ev.Motion);
+
+            // 情绪帧：atlas 皮肤额外贴一帧表情，逐帧皮肤没有这一层（ApplyPetFrame 直接返回）。
+            // 不用显式「回退」——ApplyPetFrame 里 _emoSlotUntil 到期后自然回到状态帧。
+            int emoSlot = AtlasSlotForEmotion(ev.Emotion);
+            if (emoSlot >= 0)
+            {
+                _emoSlot = emoSlot;
+                _emoSlotUntil = now.AddSeconds(Math.Max(1.2, ev.DurSec) + 0.2);
+                ApplyPetFrame();
+            }
+
             ShowBubbleFor(ev.DurSec);
             SaveState();
         }
 
-        /** 情绪色只落在一颗 5px 的圆点上，卡片描边保持中性 */
+        /** 情绪色落在 6px 圆点 / 2px rail / 尾巴描边；卡片整圈描边保持中性避免闪烁 */
         private void ApplyAccent(string hex)
         {
             try
             {
                 Color color = (Color)ColorConverter.ConvertFromString(hex);
+                // 三处各自新建画刷，绝不复用 static Frozen 的 BorderBrushDark
                 _dot.Background = new SolidColorBrush(color);
+                _accentRail.Background = new SolidColorBrush(color);
+                Color tailColor = color;
+                tailColor.A = 191;
+                _tail.Stroke = new SolidColorBrush(tailColor);
+            }
+            catch (Exception) { }
+        }
+
+        /** 事件结束 / 回平静 / 授权卡过期时复位，避免尾巴残留上一次情绪色 */
+        private void ResetAccent()
+        {
+            try
+            {
+                _dot.Background = new SolidColorBrush(Color.FromRgb(0x7C, 0x88, 0x9E));
+                _accentRail.Background = new SolidColorBrush(Color.FromRgb(0x7C, 0x88, 0x9E));
+                _tail.Stroke = BorderBrushDark;
             }
             catch (Exception) { }
         }
 
         private void ShowBubbleFor(int seconds)
         {
-            _tempUntil = DateTime.Now.AddSeconds(Math.Max(2, seconds));
+            DateTime now = DateTime.Now;
+            int secs = Math.Max(2, seconds);
+            _tempUntil = now.AddSeconds(secs);   // 保护期：期间移开鼠标不收起
+            _autoUntil = now.AddSeconds(secs);   // 到期：主动收起（修复气泡永久挂屏）
             _hideTimer.Stop();
             _bubble.Visibility = Visibility.Visible;
         }
@@ -1542,7 +2058,6 @@ namespace WbPet
             string s = m.Groups[1].Value;
             s = s.Replace("\\n", " ").Replace("\\r", " ").Replace("\\t", " ");
             s = s.Replace("\\\"", "\"").Replace("\\\\", "\\").Trim();
-            if (s.Length > 70) { s = s.Substring(0, 69) + "\u2026"; }
             return s;
         }
 
@@ -1584,11 +2099,9 @@ namespace WbPet
             if (changed)
             {
                 // 授权卡过期要主动收掉，否则已经点了「允许」气泡还挂在那里骗人
-                if (prev == "blocked" && state != "blocked" && _emotionText.Text.StartsWith("\u7B49\u5F85\u4F60\u786E\u8BA4"))
+                if (prev == "blocked" && state != "blocked" && _pendingShown)
                 {
-                    _emotionText.Visibility = Visibility.Collapsed;
-                    _tempUntil = DateTime.MinValue;
-                    if (!IsPointerOverPanel()) { _bubble.Visibility = Visibility.Collapsed; }
+                    DismissPendingCard();
                 }
 
                 SetBob(state);
@@ -1598,23 +2111,60 @@ namespace WbPet
             }
 
             UpdateStateLine(state);
+
+            // 状态帧跟随：atlas 皮肤靠这里每 500ms 对齐一次，逐帧皮肤是空操作
+            try { ApplyPetFrame(); }
+            catch (Exception ex) { LogError("ApplyPetFrame", ex); }
         }
 
         /**
          * 「轻提醒」：不接管审批，只负责让你知道有人在等你。
          * 不用悬停就能看到气泡、配一声提示音、点一下把 WorkBuddy 切到前台。
          */
+        /** 授权卡收起：单一状态位 + accent 复位，两个收起路径共用 */
+        private void DismissPendingCard()
+        {
+            _pendingShown = false;
+            _pendingCard.Visibility = Visibility.Collapsed;
+            _emotionText.Visibility = Visibility.Collapsed;
+            _tempUntil = DateTime.MinValue;
+            _autoUntil = DateTime.MinValue;
+            ResetAccent();
+            if (!IsPointerOverPanel()) { _bubble.Visibility = Visibility.Collapsed; }
+        }
+
+        /** 操作行与角色点击共用同一路由和 2s 防抖，避免双触发切前台 */
+        private void FocusFromPendingCard()
+        {
+            if (_shownState != "blocked") { return; }
+            if ((DateTime.Now - _lastFocusAt).TotalSeconds < 2) { return; }
+            _lastFocusAt = DateTime.Now;
+            FocusWorkBuddy();
+        }
+
         private void ShowPendingCard()
         {
             string tool = _busTool.Length > 0 ? _busTool : "\u5DE5\u5177";
-            string line = "\u7B49\u5F85\u4F60\u786E\u8BA4\uFF1A" + tool;
-            if (_busDetail.Length > 0) { line += "\n" + _busDetail; }
-            line += "\n\u70B9\u6211\u5207\u56DE WorkBuddy";
-
             _title.Text = PersonaName();
-            _emotionText.Text = line;
-            _emotionText.Visibility = Visibility.Visible;
-            ApplyAccent("#F87171");
+            _pendingTitle.Text = "\u7B49\u5F85\u4F60\u786E\u8BA4\uFF1A" + tool;
+
+            long secs = (long)(DateTime.Now - _stateChangedAt).TotalSeconds;
+            if (secs < 0) { secs = 0; }
+            _pendingTimer.Text = secs + "s";
+
+            // 命令预览压到 1 行 24 字，完整原文留给 ToolTip
+            _pendingCommandFull = _busDetail;
+            string preview = _busDetail;
+            if (preview.Length > 24) { preview = preview.Substring(0, 23) + "\u2026"; }
+            _pendingCommand.Text = preview;
+            _pendingCommand.ToolTip = preview.Length > 0
+                ? MakeDarkToolTip(_pendingCommand, _pendingCommandFull) : null;
+            _pendingCommand.Visibility = preview.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+
+            _emotionText.Visibility = Visibility.Collapsed;
+            _pendingCard.Visibility = Visibility.Visible;
+            _pendingShown = true;
+            ApplyAccent("#F87171");   // 功能态 accent，独立于情绪 3 组
             ShowBubbleFor(25);
             Bounce(9, 2, 260);
 
@@ -1639,6 +2189,9 @@ namespace WbPet
             else if (state == "juggling") { amp = 8.0; ms = 360; }
             else if (state == "blocked") { amp = 4.0; ms = 1100; }
             else if (state == "compacting") { amp = 2.5; ms = 1700; }
+            // atlas 形象是静态帧，帧间没有任何变化，靠极轻的呼吸位移补一点「活着感」；
+            // 逐帧皮肤本身就在动，保持原来的完全静止（落到下面的 amp<=0 复位分支）
+            else if (_atlas != null) { amp = 1.5; ms = 3600; }
 
             if (amp <= 0)
             {
@@ -1906,12 +2459,12 @@ namespace WbPet
             switch (emotion)
             {
                 case "happy": return "#F9A8D4";
-                case "proud": return "#FBBF24";
-                case "worried": return "#F87171";
-                case "tender": return "#FDA4AF";
-                case "sleepy": return "#6B7B9E";
-                case "surprised": return "#A78BFA";
-                default: return "#333949";
+                case "proud": return "#F9A8D4";
+                case "surprised": return "#F9A8D4";
+                case "worried": return "#FDBA9C";
+                case "tender": return "#FDBA9C";
+                case "sleepy": return "#8C9AB8";
+                default: return "#7C889E";
             }
         }
 
@@ -1932,6 +2485,7 @@ namespace WbPet
                     if (k == "persona" && v.Length > 0) { _persona = v; }
                     else if (k == "verbosity" && v.Length > 0) { _verbosity = v; }
                     else if (k == "sound") { _soundOn = v != "off"; }
+                    else if (k == "topmost") { _topmostOn = v != "off"; }
                     else if (k == "winX") { int.TryParse(v, out x); }
                     else if (k == "winY") { int.TryParse(v, out y); }
                 }
@@ -1965,6 +2519,7 @@ namespace WbPet
                 sb.AppendLine("persona=" + _persona);
                 sb.AppendLine("verbosity=" + _verbosity);
                 sb.AppendLine("sound=" + (_soundOn ? "on" : "off"));
+                sb.AppendLine("topmost=" + (_topmostOn ? "on" : "off"));
                 sb.AppendLine("winX=" + (int)Left);
                 sb.AppendLine("winY=" + (int)Top);
                 sb.AppendLine("eventOffset=" + _eventOffset);
@@ -2004,6 +2559,12 @@ namespace WbPet
             _frameTimer.Interval = TimeSpan.FromMilliseconds(83);
             _frameTimer.Tick += OnFrameTick;
             if (_frames.Count > 1) { _frameTimer.Start(); }
+
+            // 图集序列动画：只有 manifest 里配了多帧 seq 才真正跑起来，
+            // 单帧图集全程停在 Stop，不会额外占 UI 线程。
+            _atlasTimer = new DispatcherTimer();
+            _atlasTimer.Interval = TimeSpan.FromMilliseconds(260);
+            _atlasTimer.Tick += delegate { OnAtlasTick(); };
 
             _dataTimer = new DispatcherTimer();
             _dataTimer.Interval = TimeSpan.FromMilliseconds(2000);
@@ -2046,6 +2607,12 @@ namespace WbPet
                 if (dir == null) { return; }
                 _loadedSkin = id;
                 LoadFrames(dir);
+                // 换肤时 state 没变，RenderRunState 里那条 SetBob 不会触发：
+                // 不补这一行的话 逐帧皮肤→atlas 会停在 _bob=0（静态贴图），
+                // atlas→逐帧皮肤 又会把 1.5px 呼吸动画残留到逐帧皮肤上。
+                SetBob(_shownState);
+                // 换肤后复位情绪色：否则卡片圆点 / rail / 尾巴描边会残留上一次情绪
+                ResetAccent();
                 Bounce(9, 2, 280);
                 ShowBubbleFor(4);
             };
@@ -2068,8 +2635,29 @@ namespace WbPet
             {
                 try { RenderRunState(); }
                 catch (Exception ex) { LogError("RenderRunState", ex); }
+                try { ComputeVisibility(); }
+                catch (Exception ex) { LogError("ComputeVisibility", ex); }
             };
             _stateTimer.Start();
+        }
+
+        /** 单一仲裁：自动气泡到期主动收起；_tempUntil 保护期与 _autoUntil 到期分离 */
+        private void ComputeVisibility()
+        {
+            DateTime now = DateTime.Now;
+            if (_pendingShown)
+            {
+                long secs = (long)(now - _stateChangedAt).TotalSeconds;
+                if (secs < 0) { secs = 0; }
+                _pendingTimer.Text = secs + "s";
+            }
+            if (_bubble == null || _bubble.Visibility != Visibility.Visible) { return; }
+            if (now < _tempUntil || now < _autoUntil) { return; }
+            if (IsPointerOverPanel()) { return; }
+            if (_pendingShown) { DismissPendingCard(); return; }
+            _bubble.Visibility = Visibility.Collapsed;
+            _emotionText.Visibility = Visibility.Collapsed;
+            ResetAccent();
         }
 
         private void TryFlushPending()
@@ -2079,17 +2667,37 @@ namespace WbPet
             if (DateTime.Now > _pendingUntil) { _pendingEvent = null; return; }
             PetEvent ev = _pendingEvent;
             _pendingEvent = null;
+            if (!AllowPlay(ev)) { return; }   // 补播前重跑节流
             PlayEvent(ev);
         }
 
+        /** 命中区收敛到「角色 ∪ 气泡」，透明空白不再误判为悬停 */
         private bool IsPointerOverPanel()
         {
             Point p = Mouse.GetPosition(this);
-            return p.X >= 0 && p.Y >= 0 && p.X <= ActualWidth && p.Y <= ActualHeight;
+            if (Hit(_mascot, p, 4)) { return true; }
+            if (_bubble != null && _bubble.Visibility == Visibility.Visible && Hit(_bubble, p, 4)) { return true; }
+            return false;
+        }
+
+        private bool Hit(FrameworkElement el, Point p, double pad)
+        {
+            if (el == null) { return false; }
+            try
+            {
+                Point origin = el.TransformToVisual(this).Transform(new Point(0, 0));
+                return p.X >= origin.X - pad && p.Y >= origin.Y - pad
+                    && p.X <= origin.X + el.ActualWidth + pad
+                    && p.Y <= origin.Y + el.ActualHeight + pad;
+            }
+            catch (Exception) { return false; }
         }
 
         private void OnFrameTick(object sender, EventArgs e)
         {
+            // 切到 atlas 皮肤后这个定时器本该已停，留一道保险：
+            // 万一还有残留 Tick 把 _frames 的旧帧盖上去，角色会闪回上一个形象
+            if (_atlas != null) { _frameTimer.Stop(); return; }
             if (_frames.Count < 2) { _frameTimer.Stop(); return; }
             _idx = (_idx + 1) % _frames.Count;
             _mascot.Source = _frames[_idx];
@@ -2215,7 +2823,6 @@ namespace WbPet
                 string todayCredit = GetValue(map, "todayCredit", "-");
                 string sessions = GetValue(map, "todaySessions", "0");
                 _todayValue.Text = todayCredit;
-                _todaySessions.Text = sessions + " \u4F1A\u8BDD";
 
                 // 预算百分比在这里本地算，不信文件里的百分比：
                 // 用户刚在菜单里改过预算时，panel-data.txt 还是上一轮的旧值。
@@ -2259,15 +2866,10 @@ namespace WbPet
                 _budgetPct = _budgetDaily > 0 ? (_todayCredit / _budgetDaily) * 100 : 0;
                 _monthPct = _budgetMonthly > 0 ? (_monthCredit / _budgetMonthly) * 100 : 0;
 
-                if (_budgetMonthly > 0)
-                {
-                    _todaySessions.Text = sessions + " \u4F1A\u8BDD \u00B7 \u6708" + _monthPct.ToString("0") + "%";
-                }
-                else if (_budgetDaily > 0)
-                {
-                    _todaySessions.Text = sessions + " \u4F1A\u8BDD \u00B7 " + _budgetPct.ToString("0") + "%";
-                }
-                _todayValue.Foreground = (_budgetDaily > 0 && _budgetPct >= 100) ? OverBrush : ValueBrush;
+                double shownPct = _budgetMonthly > 0 ? _monthPct : _budgetPct;
+                bool hasBudget = _budgetMonthly > 0 || _budgetDaily > 0;
+                SetTodaySessions(sessions, shownPct, _budgetMonthly > 0, hasBudget);
+                _todayValue.Foreground = (hasBudget && shownPct >= 90) ? OverBrush : ValueBrush;
                 UpdateBudgetUi();
 
                 if (changed)
@@ -2291,6 +2893,7 @@ namespace WbPet
             try
             {
                 // 页脚只用于临时消息（换形象进度等），平时隐藏
+                if (DateTime.Now < _footerUntil) { return; }
                 if (File.Exists(_statusFile))
                 {
                     string st = File.ReadAllText(_statusFile, Encoding.UTF8).Trim();
@@ -2312,9 +2915,31 @@ namespace WbPet
             catch (Exception) { }
         }
 
+        /** 百分比拆第二个 Run：颜色 + 字重构成非颜色编码，不新增任何行 */
+        private void SetTodaySessions(string sessions, double pct, bool isMonth, bool hasBudget)
+        {
+            if (_todaySessionsMain == null)
+            {
+                _todaySessionsMain = new Run();
+                _todaySessionsPct = new Run();
+                _todaySessions.Inlines.Add(_todaySessionsMain);
+                _todaySessions.Inlines.Add(_todaySessionsPct);
+            }
+            _todaySessionsMain.Text = sessions + " \u4F1A\u8BDD";
+            _todaySessionsMain.Foreground = CaptionBrush;
+            if (!hasBudget)
+            {
+                _todaySessionsPct.Text = "";
+                return;
+            }
+            _todaySessionsPct.Text = " \u00B7 " + (isMonth ? "\u6708" : "") + pct.ToString("0") + "%";
+            _todaySessionsPct.Foreground = pct >= 90 ? OverBrush : (pct >= 70 ? WarnBrush : CaptionBrush);
+            _todaySessionsPct.FontWeight = pct >= 90 ? FontWeights.Medium : FontWeights.Normal;
+        }
+
         /**
          * 预算条：3px 细线按百分比填充，配色分三档。
-         * 卡片内容宽 288 - 左右内边距 30 = 258，填充宽度按这个算。
+         * 卡片内容宽 290 - 2x1 描边 - 左右内边距 30 = 258，填充宽度按这个算。
          * 配了月预算就以月为准——日预算管的是「今天别失控」，月预算才是额度本身。
          */
         private void UpdateBudgetUi()
@@ -2351,7 +2976,7 @@ namespace WbPet
                     tip.Append("\n\u65E5\u5747 ").Append(_avgDaily.ToString("0.#")).Append(" \u00B7 ").Append(_forecast);
                 }
             }
-            _budgetTrack.ToolTip = tip.ToString();
+            _budgetTrack.ToolTip = MakeDarkToolTip(_budgetTrack, tip.ToString());
         }
 
         /** 面板侧的异常落盘。以前所有 catch 都是空的，出问题只能靠猜 */
@@ -2441,22 +3066,26 @@ namespace WbPet
     public class CostWindow : Window
     {
         private static readonly Brush CardBg = Frozen(0x1B, 0x1E, 0x26);
-        private static readonly Brush CardBorder = Frozen(0x33, 0x39, 0x49);
+        private static readonly Brush CardBorder = Frozen(0x3D, 0x46, 0x5C);
         private static readonly Brush ValueFg = Frozen(0xED, 0xEF, 0xF5);
         private static readonly Brush MutedFg = Frozen(0x98, 0xA0, 0xB4);
-        private static readonly Brush CaptionFg = Frozen(0x6B, 0x73, 0x85);
+        private static readonly Brush CaptionFg = Frozen(0x98, 0xA0, 0xB4);
         private static readonly Brush TitleFg = Frozen(0x8A, 0x93, 0xA8);
-        private static readonly Brush TrackBg = Frozen(0x26, 0x2B, 0x36);
+        private static readonly Brush TrackBg = Frozen(0x42, 0x4A, 0x5E);
+        private static readonly Brush DividerFg = Frozen(0x33, 0x3B, 0x4C);
         private static readonly Brush BarFg = Frozen(0x5E, 0xEA, 0xD4);
-        private static readonly Brush MetaFg = Frozen(0x7C, 0x85, 0x98);
-        private static readonly Brush MutedBarFg = Frozen(0x5A, 0x60, 0x6E);
+        private static readonly Brush AccentFg = Frozen(0x2E, 0xE6, 0xC0);
+        private static readonly Brush MetaFg = Frozen(0x98, 0xA0, 0xB4);
+        private static readonly Brush MutedBarFg = Frozen(0x8C, 0x9A, 0xB8);
         private static readonly Brush OverFg = Frozen(0xF8, 0x71, 0x71);
+        private static readonly Brush TrendOverFg = Frozen(0xFB, 0x92, 0x3C);
+        private static readonly Brush MutedLineFg = Frozen(0x3D, 0x46, 0x5C);
 
         // 卡片不贴窗口边缘：投影要往外画 18px，贴边会被窗口边界裁掉，
         // 看起来就像「底边被切了一刀」。
         private const double ShadowPad = 12;
         private const double CardWidth = 364;
-        private const double InnerWidth = CardWidth - 32;
+        private const double InnerWidth = 330;
 
         private readonly string _baseDir;
         private readonly string _projectsFile;
@@ -2512,7 +3141,7 @@ namespace WbPet
             card.Margin = new Thickness(ShadowPad);
             card.Background = CardBg;
             card.BorderBrush = CardBorder;
-            card.BorderThickness = new Thickness(0.5);
+            card.BorderThickness = new Thickness(1);
             card.CornerRadius = new CornerRadius(16);
             card.Padding = new Thickness(16, 14, 16, 14);
             card.MouseLeftButtonDown += delegate { try { DragMove(); } catch (Exception) { } };
@@ -2574,7 +3203,7 @@ namespace WbPet
 
             Border divider1 = new Border();
             divider1.Height = 1;
-            divider1.Background = TrackBg;
+            divider1.Background = DividerFg;
             divider1.Margin = new Thickness(0, 0, 0, 12);
             body.Children.Add(divider1);
 
@@ -2586,15 +3215,19 @@ namespace WbPet
             chartBlock.Margin = new Thickness(0, 0, 0, 6);
 
             Grid chartHead = new Grid();
-            TextBlock trendCap = MakeText("\u8FD1 30 \u5929", 9.5, CaptionFg);
+            TextBlock trendCap = MakeText("\u8FD1 30 \u5929", 10.5, CaptionFg);
             chartHead.Children.Add(trendCap);
-            _trendPeak = MakeText("", 9.5, CaptionFg);
+            _trendPeak = MakeText("", 10.5, CaptionFg);
             _trendPeak.HorizontalAlignment = HorizontalAlignment.Right;
             chartHead.Children.Add(_trendPeak);
             chartBlock.Children.Add(chartHead);
 
+            TextBlock axis = MakeText("30 \u5929\u524D \u2190 \u2192 \u4ECA\u65E5", 10.5, CaptionFg);
+            axis.Margin = new Thickness(0, 3, 0, 0);
+            chartBlock.Children.Add(axis);
+
             _trend = new Grid();
-            _trend.Height = 40;
+            _trend.Height = 56;
             _trend.Margin = new Thickness(0, 6, 0, 0);
             for (int i = 0; i < 30; i++)
             {
@@ -2605,11 +3238,11 @@ namespace WbPet
 
             Border divider2 = new Border();
             divider2.Height = 1;
-            divider2.Background = TrackBg;
+            divider2.Background = DividerFg;
             divider2.Margin = new Thickness(0, 0, 0, 12);
             body.Children.Add(divider2);
 
-            _footer = MakeText("", 10, CaptionFg);
+            _footer = MakeText("", 10.5, CaptionFg);
             _footer.TextWrapping = TextWrapping.Wrap;
             body.Children.Add(_footer);
 
@@ -2704,7 +3337,7 @@ namespace WbPet
 
                 if (rows.Count == 0)
                 {
-                    TextBlock empty = MakeText("\u672C\u6708\u8FD8\u6CA1\u6709\u8BB0\u5F55\uFF0C\u8DD1\u4E00\u8F6E\u5BF9\u8BDD\u5C31\u6709\u4E86", 11.5, CaptionFg);
+                    TextBlock empty = MakeText("\u672C\u6708\u8FD8\u6CA1\u6709\u8BB0\u5F55\uFF0C\u8DD1\u4E00\u8F6E\u5BF9\u8BDD\u5C31\u6709\u4E86", 12, CaptionFg);
                     empty.Margin = new Thickness(0, 4, 0, 8);
                     _rows.Children.Add(empty);
                 }
@@ -2716,7 +3349,7 @@ namespace WbPet
                     }
                     if (rows.Count > 8)
                     {
-                        TextBlock more = MakeText("\u5176\u4F59 " + (rows.Count - 8) + " \u4E2A\u9879\u76EE\u5DF2\u5408\u5E76\u8BA1\u5165\u5408\u8BA1", 10, MetaFg);
+                        TextBlock more = MakeText("\u5176\u4F59 " + (rows.Count - 8) + " \u4E2A\u9879\u76EE\u5DF2\u5408\u5E76\u8BA1\u5165\u5408\u8BA1", 10.5, MetaFg);
                         more.Margin = new Thickness(0, 0, 0, 8);
                         _rows.Children.Add(more);
                     }
@@ -2855,8 +3488,9 @@ namespace WbPet
                 bar.Margin = new Thickness(0.5, 0, 0.5, 0);
                 bar.VerticalAlignment = VerticalAlignment.Bottom;
                 bar.CornerRadius = new CornerRadius(1);
-                bar.Height = vals[i] > 0 ? Math.Max(1.5, vals[i] / max * 40.0) : 1.0;
-                bar.Background = vals[i] <= 0 ? TrackBg : (vals[i] > threshold ? OverFg : BarFg);
+                bar.Height = vals[i] > 0 ? Math.Max(2.0, vals[i] / max * 56.0) : 2.0;
+                bar.Background = vals[i] <= 0 ? MutedLineFg
+                    : (i == 29 ? AccentFg : (vals[i] > threshold ? TrendOverFg : BarFg));
                 bar.ToolTip = day.ToString("MM-dd") + " \u00B7 "
                     + (vals[i] > 0 ? vals[i].ToString("0.#") + " \u79EF\u5206" : "\u65E0\u8BB0\u5F55");
                 Grid.SetColumn(bar, i);
@@ -2882,15 +3516,16 @@ namespace WbPet
             double pct = total > 0 ? credit / total * 100 : 0;
 
             StackPanel row = new StackPanel();
-            row.Margin = new Thickness(0, 0, 0, 11);
+            row.Margin = new Thickness(0, 0, 0, 12);
 
             Grid line = new Grid();
-            TextBlock n = MakeText(name, 12.5, ValueFg);
+            TextBlock n = MakeText(name, 12, ValueFg);
+            n.FontWeight = FontWeights.Medium;
             n.TextTrimming = TextTrimming.CharacterEllipsis;
             n.Margin = new Thickness(0, 0, 96, 0);
             line.Children.Add(n);
 
-            TextBlock v = MakeText(credit.ToString("0.#") + " \u79EF\u5206", 11.5, ValueFg);
+            TextBlock v = MakeText(credit.ToString("0.#") + " \u79EF\u5206", 12, ValueFg);
             v.HorizontalAlignment = HorizontalAlignment.Right;
             line.Children.Add(v);
             row.Children.Add(line);
@@ -2915,7 +3550,7 @@ namespace WbPet
 
             TextBlock meta = MakeText(
                 calls + " \u8F6E \u00B7 " + FmtTokens(prompt) + " token \u00B7 " + pct.ToString("0") + "%",
-                10, MetaFg);
+                10.5, MetaFg);
             meta.Margin = new Thickness(0, 5, 0, 0);
             row.Children.Add(meta);
 
@@ -2988,6 +3623,165 @@ namespace WbPet
             app.Run(win);
 
             GC.KeepAlive(mutex);
+        }
+    }
+
+    /**
+     * 雪碧图取帧器：一张 8×4 的 PNG 切成 32 格，每只角色占 16 格（逻辑序号 0–15）。
+     * CroppedBitmap 只引用源图的一块区域、不复制像素，所以 32 帧共用一份解码结果，
+     * 比「32 个独立 PNG」省内存、省文件数，也省掉定时器轮播。
+     * 项目一贯零第三方依赖（manifest 用正则手解析），这里同样只吃 BCL。
+     */
+    internal sealed class PetAtlas
+    {
+        private const int SlotCount = 16;   // 每只角色 16 帧：9 状态 + 7 情绪
+
+        private readonly BitmapSource _image;
+        private readonly int _cell;
+        private readonly int _columns;
+        private readonly int _rows;
+        private readonly int _baseIndex;
+        // 缓存键换成「图集绝对序号」而不是槽位：一个槽位可能对应多帧（序列动画），
+        // 老图集里槽位与序号一一对应，行为不变。
+        private readonly Dictionary<int, CroppedBitmap> _cache = new Dictionary<int, CroppedBitmap>();
+        private readonly object _cacheLock = new object();
+
+        private readonly Dictionary<int, int[]> _seq;
+        private readonly Dictionary<int, int> _seqMs;
+
+        /** 已经 Freeze 的源图，可跨线程共享 */
+        public BitmapSource Image { get { return _image; } }
+        /** 单格边长（@2x 为 256） */
+        public int Cell { get { return _cell; } }
+        /** 图集列数（8） */
+        public int Columns { get { return _columns; } }
+        /** 该角色在整张图里的起始索引（团团 0 / 可可 16） */
+        public int Base { get { return _baseIndex; } }
+        /** 是否有任何槽位配了多帧序列 */
+        public bool Animated { get { return _seq.Count > 0; } }
+
+        private PetAtlas(BitmapSource image, int cell, int columns, int rows, int baseIndex,
+            Dictionary<int, int[]> seq, Dictionary<int, int> seqMs)
+        {
+            _image = image;
+            _cell = cell;
+            _columns = columns;
+            _rows = rows;
+            _baseIndex = baseIndex;
+            _seq = seq != null ? seq : new Dictionary<int, int[]>();
+            _seqMs = seqMs != null ? seqMs : new Dictionary<int, int>();
+        }
+
+        /** 槽位的帧数；没有配 seq 就是 1 帧（静态贴图） */
+        public int SeqCount(int slot)
+        {
+            int[] list;
+            if (_seq.TryGetValue(slot, out list) && list.Length > 0) { return list.Length; }
+            return 1;
+        }
+
+        /** 槽位的帧间隔（毫秒）；没配就给 260，和 manifest 里的习惯值一致 */
+        public int SeqMs(int slot)
+        {
+            int ms;
+            if (_seqMs.TryGetValue(slot, out ms) && ms > 0) { return ms; }
+            return 260;
+        }
+
+        /**
+         * 加载整张图集。用 OnLoad + Freeze：文件句柄立刻释放（换肤时不会被占用），
+         * 冻结后的位图也不再参与 WPF 的依赖属性系统，省掉一次拷贝。
+         * PreservePixelFormat 保证 RGBA 不被转成 BGR，否则透明底会变黑边。
+         */
+        public static PetAtlas Load(string imagePath, int cell, int columns, int rows, int baseIndex,
+            Dictionary<int, int[]> seq, Dictionary<int, int> seqMs)
+        {
+            if (string.IsNullOrEmpty(imagePath)) { throw new ArgumentException("imagePath 为空"); }
+            if (!File.Exists(imagePath)) { throw new FileNotFoundException("找不到雪碧图：" + imagePath, imagePath); }
+            if (cell <= 0) { throw new ArgumentException("cell 必须为正数"); }
+            if (columns <= 0 || rows <= 0) { throw new ArgumentException("columns / rows 必须为正数"); }
+
+            BitmapImage image = new BitmapImage();
+            image.BeginInit();
+            image.CacheOption = BitmapCacheOption.OnLoad;
+            image.CreateOptions = BitmapCreateOptions.PreservePixelFormat;
+            image.UriSource = new Uri(imagePath, UriKind.Absolute);
+            image.EndInit();
+            image.Freeze();
+
+            int needWidth = columns * cell;
+            int needHeight = rows * cell;
+            if (image.PixelWidth < needWidth || image.PixelHeight < needHeight)
+            {
+                throw new ArgumentException("雪碧图尺寸不足：" + image.PixelWidth + "x" + image.PixelHeight
+                    + "，按 cell=" + cell + " / " + columns + "x" + rows + " 至少需要 "
+                    + needWidth + "x" + needHeight + "（" + imagePath + "）");
+            }
+
+            // base 越界会让 Get 切到图外，直接钳到能放下 16 帧的最大起点
+            int safeBase = baseIndex;
+            if (safeBase < 0) { safeBase = 0; }
+            int maxBase = columns * rows - SlotCount;
+            if (maxBase < 0) { maxBase = 0; }
+            if (safeBase > maxBase) { safeBase = maxBase; }
+
+            return new PetAtlas(image, cell, columns, rows, safeBase, seq, seqMs);
+        }
+
+        /**
+         * 取某个槽位的第 i 帧：配了 seq 就按列表取模，没配就退回「基准序号 + 槽位」。
+         * 取模保证任何调用方传越界也不会切到图外。
+         */
+        public CroppedBitmap GetFrame(int slot, int i)
+        {
+            if (slot < 0 || slot >= SlotCount) { slot = 0; }
+
+            int[] list;
+            if (_seq.TryGetValue(slot, out list) && list.Length > 0)
+            {
+                int n = list.Length;
+                int phase = ((i % n) + n) % n;
+                return GetIndex(list[phase]);
+            }
+            return GetIndex(_baseIndex + slot);
+        }
+
+        /** 取槽位的第一帧，保留老调用方式 */
+        public CroppedBitmap Get(int slot)
+        {
+            return GetFrame(slot, 0);
+        }
+
+        /**
+         * 按图集绝对序号切一格，命中缓存直接返回。
+         * 双重检查加锁：绝大多数调用在第 N 帧之后全是缓存命中，
+         * 不进 lock 也不新建对象；冷启动时并发也只可能多切一次，不影响正确性。
+         */
+        private CroppedBitmap GetIndex(int index)
+        {
+            int total = _columns * _rows;
+            if (index < 0) { index = 0; }
+            if (total > 0 && index >= total) { index = total - 1; }
+
+            lock (_cacheLock)
+            {
+                CroppedBitmap cached;
+                if (_cache.TryGetValue(index, out cached)) { return cached; }
+            }
+
+            int column = index % _columns;
+            int row = index / _columns;
+            CroppedBitmap frame = new CroppedBitmap(
+                _image, new Int32Rect(column * _cell, row * _cell, _cell, _cell));
+            frame.Freeze();   // 冻结后才能跨线程/复用，也能让 WPF 直接走快速路径
+
+            lock (_cacheLock)
+            {
+                CroppedBitmap existing;
+                if (_cache.TryGetValue(index, out existing)) { return existing; }
+                _cache[index] = frame;
+            }
+            return frame;
         }
     }
 }

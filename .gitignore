@@ -5,7 +5,18 @@ assets/frames/delays.txt
 !assets/frames/.gitkeep
 
 # 各形象的本地缓存（含 current.txt / status.txt）
-assets/skins/
+# 逐项忽略而非整目录忽略，才能单独放行随包入库的雪碧图形象
+assets/skins/*
+# 雪碧图形象只放 manifest.json（图集在 assets/atlas/ 共用），必须入库
+!assets/skins/tuantuan/
+!assets/skins/tuantuan/**
+!assets/skins/keke/
+!assets/skins/keke/**
+!assets/skins/naigai/
+!assets/skins/naigai/**
+
+# 图集重建时生成的编号预览图（build-naigai-atlas.py --preview），可随时重出
+assets/atlas/*-preview*.png
 
 # 运行时数据与日志
 panel-data.txt
@@ -32,6 +43,7 @@ WbPet.exe
 .workbuddy/
 .vscode/
 .idea/
+.openidea/
 Thumbs.db
 desktop.ini
 

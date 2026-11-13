@@ -417,7 +417,7 @@ async function main() {
   console.log('输出目录：' + path.resolve(opts.out));
 }
 
-module.exports = { extractTo, fetchBuffer };
+module.exports = { extractTo, fetchBuffer, encodePng, decodePng, composite };
 
 if (require.main === module) {
   main().catch((e) => {
