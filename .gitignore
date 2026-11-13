@@ -14,6 +14,8 @@ assets/skins/*
 !assets/skins/keke/**
 !assets/skins/naigai/
 !assets/skins/naigai/**
+!assets/skins/hoops/
+!assets/skins/hoops/**
 
 # 图集重建时生成的编号预览图（build-naigai-atlas.py --preview），可随时重出
 assets/atlas/*-preview*.png

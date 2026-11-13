@@ -18,6 +18,11 @@
       "local": true
     },
     {
+      "id": "hoops",
+      "name": "篮球仔 Hoops",
+      "local": true
+    },
+    {
       "id": "quantum",
       "name": "量子喵",
       "url": "https://download.codebuddy.cn/growth-plan/sprite_anim_556x556_compressed.png"

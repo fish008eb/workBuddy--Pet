@@ -1,0 +1,1160 @@
+{
+  "image": "hoops-atlas@2x.png",
+  "character": "hoops",
+  "source": {
+    "url": "https://assets.petdex.dev/pets/hoops-206e70d7dbd5/sprite.webp",
+    "creator": "kaidi c.",
+    "page": "https://petdex.dev/pets/hoops",
+    "note": "Petdex 上的用户投稿同人形象，版权归原作者；本项目仅作本地展示。"
+  },
+  "frameCount": 57,
+  "columns": 8,
+  "rows": [
+    {
+      "row": 0,
+      "action": "idle",
+      "label": "待机 · 呼吸眨眼",
+      "frames": 6
+    },
+    {
+      "row": 1,
+      "action": "runRight",
+      "label": "向右跑",
+      "frames": 8
+    },
+    {
+      "row": 2,
+      "action": "runLeft",
+      "label": "向左跑",
+      "frames": 8
+    },
+    {
+      "row": 3,
+      "action": "waving",
+      "label": "挥手 · 打招呼",
+      "frames": 4
+    },
+    {
+      "row": 4,
+      "action": "jumping",
+      "label": "跳跃",
+      "frames": 5
+    },
+    {
+      "row": 5,
+      "action": "failed",
+      "label": "失败 · 流泪",
+      "frames": 8
+    },
+    {
+      "row": 6,
+      "action": "waiting",
+      "label": "等待 · 耐心待机",
+      "frames": 6
+    },
+    {
+      "row": 7,
+      "action": "running",
+      "label": "原地跑",
+      "frames": 6
+    },
+    {
+      "row": 8,
+      "action": "review",
+      "label": "端详 · 思考",
+      "frames": 6
+    }
+  ],
+  "cellWidth": 208,
+  "cellHeight": 208,
+  "imageWidth": 1664,
+  "imageHeight": 1872,
+  "background": "transparent",
+  "anchor": "bottomCenter",
+  "note": "index = row * 8 + column，行内空位不占内容；seq 用这里的绝对序号。",
+  "frames": [
+    {
+      "index": 0,
+      "column": 0,
+      "row": 0,
+      "x": 0,
+      "y": 0,
+      "w": 208,
+      "h": 208,
+      "action": "idle",
+      "label": "待机 · 呼吸眨眼",
+      "stripIndex": 0,
+      "source": "petdex:hoops",
+      "trim": {
+        "x": 5,
+        "y": 6,
+        "w": 182,
+        "h": 195
+      }
+    },
+    {
+      "index": 1,
+      "column": 1,
+      "row": 0,
+      "x": 208,
+      "y": 0,
+      "w": 208,
+      "h": 208,
+      "action": "idle",
+      "label": "待机 · 呼吸眨眼",
+      "stripIndex": 1,
+      "source": "petdex:hoops",
+      "trim": {
+        "x": 215,
+        "y": 5,
+        "w": 177,
+        "h": 198
+      }
+    },
+    {
+      "index": 2,
+      "column": 2,
+      "row": 0,
+      "x": 416,
+      "y": 0,
+      "w": 208,
+      "h": 208,
+      "action": "idle",
+      "label": "待机 · 呼吸眨眼",
+      "stripIndex": 2,
+      "source": "petdex:hoops",
+      "trim": {
+        "x": 423,
+        "y": 5,
+        "w": 178,
+        "h": 198
+      }
+    },
+    {
+      "index": 3,
+      "column": 3,
+      "row": 0,
+      "x": 624,
+      "y": 0,
+      "w": 208,
+      "h": 208,
+      "action": "idle",
+      "label": "待机 · 呼吸眨眼",
+      "stripIndex": 3,
+      "source": "petdex:hoops",
+      "trim": {
+        "x": 630,
+        "y": 5,
+        "w": 179,
+        "h": 198
+      }
+    },
+    {
+      "index": 4,
+      "column": 4,
+      "row": 0,
+      "x": 832,
+      "y": 0,
+      "w": 208,
+      "h": 208,
+      "action": "idle",
+      "label": "待机 · 呼吸眨眼",
+      "stripIndex": 4,
+      "source": "petdex:hoops",
+      "trim": {
+        "x": 839,
+        "y": 5,
+        "w": 177,
+        "h": 198
+      }
+    },
+    {
+      "index": 5,
+      "column": 5,
+      "row": 0,
+      "x": 1040,
+      "y": 0,
+      "w": 208,
+      "h": 208,
+      "action": "idle",
+      "label": "待机 · 呼吸眨眼",
+      "stripIndex": 5,
+      "source": "petdex:hoops",
+      "trim": {
+        "x": 1047,
+        "y": 5,
+        "w": 178,
+        "h": 198
+      }
+    },
+    {
+      "index": 8,
+      "column": 0,
+      "row": 1,
+      "x": 0,
+      "y": 208,
+      "w": 208,
+      "h": 208,
+      "action": "runRight",
+      "label": "向右跑",
+      "stripIndex": 0,
+      "source": "petdex:hoops",
+      "trim": {
+        "x": 5,
+        "y": 218,
+        "w": 182,
+        "h": 187
+      }
+    },
+    {
+      "index": 9,
+      "column": 1,
+      "row": 1,
+      "x": 208,
+      "y": 208,
+      "w": 208,
+      "h": 208,
+      "action": "runRight",
+      "label": "向右跑",
+      "stripIndex": 1,
+      "source": "petdex:hoops",
+      "trim": {
+        "x": 213,
+        "y": 217,
+        "w": 182,
+        "h": 189
+      }
+    },
+    {
+      "index": 10,
+      "column": 2,
+      "row": 1,
+      "x": 416,
+      "y": 208,
+      "w": 208,
+      "h": 208,
+      "action": "runRight",
+      "label": "向右跑",
+      "stripIndex": 2,
+      "source": "petdex:hoops",
+      "trim": {
+        "x": 424,
+        "y": 213,
+        "w": 176,
+        "h": 198
+      }
+    },
+    {
+      "index": 11,
+      "column": 3,
+      "row": 1,
+      "x": 624,
+      "y": 208,
+      "w": 208,
+      "h": 208,
+      "action": "runRight",
+      "label": "向右跑",
+      "stripIndex": 3,
+      "source": "petdex:hoops",
+      "trim": {
+        "x": 629,
+        "y": 213,
+        "w": 181,
+        "h": 198
+      }
+    },
+    {
+      "index": 12,
+      "column": 4,
+      "row": 1,
+      "x": 832,
+      "y": 208,
+      "w": 208,
+      "h": 208,
+      "action": "runRight",
+      "label": "向右跑",
+      "stripIndex": 4,
+      "source": "petdex:hoops",
+      "trim": {
+        "x": 839,
+        "y": 213,
+        "w": 178,
+        "h": 198
+      }
+    },
+    {
+      "index": 13,
+      "column": 5,
+      "row": 1,
+      "x": 1040,
+      "y": 208,
+      "w": 208,
+      "h": 208,
+      "action": "runRight",
+      "label": "向右跑",
+      "stripIndex": 5,
+      "source": "petdex:hoops",
+      "trim": {
+        "x": 1057,
+        "y": 213,
+        "w": 158,
+        "h": 198
+      }
+    },
+    {
+      "index": 14,
+      "column": 6,
+      "row": 1,
+      "x": 1248,
+      "y": 208,
+      "w": 208,
+      "h": 208,
+      "action": "runRight",
+      "label": "向右跑",
+      "stripIndex": 6,
+      "source": "petdex:hoops",
+      "trim": {
+        "x": 1256,
+        "y": 213,
+        "w": 176,
+        "h": 198
+      }
+    },
+    {
+      "index": 15,
+      "column": 7,
+      "row": 1,
+      "x": 1456,
+      "y": 208,
+      "w": 208,
+      "h": 208,
+      "action": "runRight",
+      "label": "向右跑",
+      "stripIndex": 7,
+      "source": "petdex:hoops",
+      "trim": {
+        "x": 1468,
+        "y": 213,
+        "w": 167,
+        "h": 198
+      }
+    },
+    {
+      "index": 16,
+      "column": 0,
+      "row": 2,
+      "x": 0,
+      "y": 416,
+      "w": 208,
+      "h": 208,
+      "action": "runLeft",
+      "label": "向左跑",
+      "stripIndex": 0,
+      "source": "petdex:hoops",
+      "trim": {
+        "x": 11,
+        "y": 421,
+        "w": 169,
+        "h": 198
+      }
+    },
+    {
+      "index": 17,
+      "column": 1,
+      "row": 2,
+      "x": 208,
+      "y": 416,
+      "w": 208,
+      "h": 208,
+      "action": "runLeft",
+      "label": "向左跑",
+      "stripIndex": 1,
+      "source": "petdex:hoops",
+      "trim": {
+        "x": 217,
+        "y": 421,
+        "w": 174,
+        "h": 198
+      }
+    },
+    {
+      "index": 18,
+      "column": 2,
+      "row": 2,
+      "x": 416,
+      "y": 416,
+      "w": 208,
+      "h": 208,
+      "action": "runLeft",
+      "label": "向左跑",
+      "stripIndex": 2,
+      "source": "petdex:hoops",
+      "trim": {
+        "x": 430,
+        "y": 421,
+        "w": 164,
+        "h": 198
+      }
+    },
+    {
+      "index": 19,
+      "column": 3,
+      "row": 2,
+      "x": 624,
+      "y": 416,
+      "w": 208,
+      "h": 208,
+      "action": "runLeft",
+      "label": "向左跑",
+      "stripIndex": 3,
+      "source": "petdex:hoops",
+      "trim": {
+        "x": 629,
+        "y": 421,
+        "w": 181,
+        "h": 198
+      }
+    },
+    {
+      "index": 20,
+      "column": 4,
+      "row": 2,
+      "x": 832,
+      "y": 416,
+      "w": 208,
+      "h": 208,
+      "action": "runLeft",
+      "label": "向左跑",
+      "stripIndex": 4,
+      "source": "petdex:hoops",
+      "trim": {
+        "x": 841,
+        "y": 421,
+        "w": 173,
+        "h": 198
+      }
+    },
+    {
+      "index": 21,
+      "column": 5,
+      "row": 2,
+      "x": 1040,
+      "y": 416,
+      "w": 208,
+      "h": 208,
+      "action": "runLeft",
+      "label": "向左跑",
+      "stripIndex": 5,
+      "source": "petdex:hoops",
+      "trim": {
+        "x": 1056,
+        "y": 421,
+        "w": 159,
+        "h": 198
+      }
+    },
+    {
+      "index": 22,
+      "column": 6,
+      "row": 2,
+      "x": 1248,
+      "y": 416,
+      "w": 208,
+      "h": 208,
+      "action": "runLeft",
+      "label": "向左跑",
+      "stripIndex": 6,
+      "source": "petdex:hoops",
+      "trim": {
+        "x": 1258,
+        "y": 421,
+        "w": 172,
+        "h": 198
+      }
+    },
+    {
+      "index": 23,
+      "column": 7,
+      "row": 2,
+      "x": 1456,
+      "y": 416,
+      "w": 208,
+      "h": 208,
+      "action": "runLeft",
+      "label": "向左跑",
+      "stripIndex": 7,
+      "source": "petdex:hoops",
+      "trim": {
+        "x": 1461,
+        "y": 422,
+        "w": 182,
+        "h": 195
+      }
+    },
+    {
+      "index": 24,
+      "column": 0,
+      "row": 3,
+      "x": 0,
+      "y": 624,
+      "w": 208,
+      "h": 208,
+      "action": "waving",
+      "label": "挥手 · 打招呼",
+      "stripIndex": 0,
+      "source": "petdex:hoops",
+      "trim": {
+        "x": 5,
+        "y": 630,
+        "w": 182,
+        "h": 195
+      }
+    },
+    {
+      "index": 25,
+      "column": 1,
+      "row": 3,
+      "x": 208,
+      "y": 624,
+      "w": 208,
+      "h": 208,
+      "action": "waving",
+      "label": "挥手 · 打招呼",
+      "stripIndex": 1,
+      "source": "petdex:hoops",
+      "trim": {
+        "x": 213,
+        "y": 636,
+        "w": 182,
+        "h": 184
+      }
+    },
+    {
+      "index": 26,
+      "column": 2,
+      "row": 3,
+      "x": 416,
+      "y": 624,
+      "w": 208,
+      "h": 208,
+      "action": "waving",
+      "label": "挥手 · 打招呼",
+      "stripIndex": 2,
+      "source": "petdex:hoops",
+      "trim": {
+        "x": 421,
+        "y": 638,
+        "w": 182,
+        "h": 179
+      }
+    },
+    {
+      "index": 27,
+      "column": 3,
+      "row": 3,
+      "x": 624,
+      "y": 624,
+      "w": 208,
+      "h": 208,
+      "action": "waving",
+      "label": "挥手 · 打招呼",
+      "stripIndex": 3,
+      "source": "petdex:hoops",
+      "trim": {
+        "x": 631,
+        "y": 629,
+        "w": 178,
+        "h": 198
+      }
+    },
+    {
+      "index": 32,
+      "column": 0,
+      "row": 4,
+      "x": 0,
+      "y": 832,
+      "w": 208,
+      "h": 208,
+      "action": "jumping",
+      "label": "跳跃",
+      "stripIndex": 0,
+      "source": "petdex:hoops",
+      "trim": {
+        "x": 5,
+        "y": 842,
+        "w": 182,
+        "h": 187
+      }
+    },
+    {
+      "index": 33,
+      "column": 1,
+      "row": 4,
+      "x": 208,
+      "y": 832,
+      "w": 208,
+      "h": 208,
+      "action": "jumping",
+      "label": "跳跃",
+      "stripIndex": 1,
+      "source": "petdex:hoops",
+      "trim": {
+        "x": 213,
+        "y": 837,
+        "w": 182,
+        "h": 198
+      }
+    },
+    {
+      "index": 34,
+      "column": 2,
+      "row": 4,
+      "x": 416,
+      "y": 832,
+      "w": 208,
+      "h": 208,
+      "action": "jumping",
+      "label": "跳跃",
+      "stripIndex": 2,
+      "source": "petdex:hoops",
+      "trim": {
+        "x": 421,
+        "y": 839,
+        "w": 182,
+        "h": 194
+      }
+    },
+    {
+      "index": 35,
+      "column": 3,
+      "row": 4,
+      "x": 624,
+      "y": 832,
+      "w": 208,
+      "h": 208,
+      "action": "jumping",
+      "label": "跳跃",
+      "stripIndex": 3,
+      "source": "petdex:hoops",
+      "trim": {
+        "x": 631,
+        "y": 837,
+        "w": 178,
+        "h": 198
+      }
+    },
+    {
+      "index": 36,
+      "column": 4,
+      "row": 4,
+      "x": 832,
+      "y": 832,
+      "w": 208,
+      "h": 208,
+      "action": "jumping",
+      "label": "跳跃",
+      "stripIndex": 4,
+      "source": "petdex:hoops",
+      "trim": {
+        "x": 837,
+        "y": 842,
+        "w": 182,
+        "h": 187
+      }
+    },
+    {
+      "index": 40,
+      "column": 0,
+      "row": 5,
+      "x": 0,
+      "y": 1040,
+      "w": 208,
+      "h": 208,
+      "action": "failed",
+      "label": "失败 · 流泪",
+      "stripIndex": 0,
+      "source": "petdex:hoops",
+      "trim": {
+        "x": 9,
+        "y": 1045,
+        "w": 173,
+        "h": 198
+      }
+    },
+    {
+      "index": 41,
+      "column": 1,
+      "row": 5,
+      "x": 208,
+      "y": 1040,
+      "w": 208,
+      "h": 208,
+      "action": "failed",
+      "label": "失败 · 流泪",
+      "stripIndex": 1,
+      "source": "petdex:hoops",
+      "trim": {
+        "x": 215,
+        "y": 1045,
+        "w": 178,
+        "h": 198
+      }
+    },
+    {
+      "index": 42,
+      "column": 2,
+      "row": 5,
+      "x": 416,
+      "y": 1040,
+      "w": 208,
+      "h": 208,
+      "action": "failed",
+      "label": "失败 · 流泪",
+      "stripIndex": 2,
+      "source": "petdex:hoops",
+      "trim": {
+        "x": 422,
+        "y": 1045,
+        "w": 179,
+        "h": 198
+      }
+    },
+    {
+      "index": 43,
+      "column": 3,
+      "row": 5,
+      "x": 624,
+      "y": 1040,
+      "w": 208,
+      "h": 208,
+      "action": "failed",
+      "label": "失败 · 流泪",
+      "stripIndex": 3,
+      "source": "petdex:hoops",
+      "trim": {
+        "x": 629,
+        "y": 1054,
+        "w": 182,
+        "h": 180
+      }
+    },
+    {
+      "index": 44,
+      "column": 4,
+      "row": 5,
+      "x": 832,
+      "y": 1040,
+      "w": 208,
+      "h": 208,
+      "action": "failed",
+      "label": "失败 · 流泪",
+      "stripIndex": 4,
+      "source": "petdex:hoops",
+      "trim": {
+        "x": 837,
+        "y": 1052,
+        "w": 182,
+        "h": 184
+      }
+    },
+    {
+      "index": 45,
+      "column": 5,
+      "row": 5,
+      "x": 1040,
+      "y": 1040,
+      "w": 208,
+      "h": 208,
+      "action": "failed",
+      "label": "失败 · 流泪",
+      "stripIndex": 5,
+      "source": "petdex:hoops",
+      "trim": {
+        "x": 1048,
+        "y": 1045,
+        "w": 176,
+        "h": 198
+      }
+    },
+    {
+      "index": 46,
+      "column": 6,
+      "row": 5,
+      "x": 1248,
+      "y": 1040,
+      "w": 208,
+      "h": 208,
+      "action": "failed",
+      "label": "失败 · 流泪",
+      "stripIndex": 6,
+      "source": "petdex:hoops",
+      "trim": {
+        "x": 1253,
+        "y": 1049,
+        "w": 182,
+        "h": 189
+      }
+    },
+    {
+      "index": 47,
+      "column": 7,
+      "row": 5,
+      "x": 1456,
+      "y": 1040,
+      "w": 208,
+      "h": 208,
+      "action": "failed",
+      "label": "失败 · 流泪",
+      "stripIndex": 7,
+      "source": "petdex:hoops",
+      "trim": {
+        "x": 1461,
+        "y": 1058,
+        "w": 182,
+        "h": 171
+      }
+    },
+    {
+      "index": 48,
+      "column": 0,
+      "row": 6,
+      "x": 0,
+      "y": 1248,
+      "w": 208,
+      "h": 208,
+      "action": "waiting",
+      "label": "等待 · 耐心待机",
+      "stripIndex": 0,
+      "source": "petdex:hoops",
+      "trim": {
+        "x": 10,
+        "y": 1253,
+        "w": 172,
+        "h": 198
+      }
+    },
+    {
+      "index": 49,
+      "column": 1,
+      "row": 6,
+      "x": 208,
+      "y": 1248,
+      "w": 208,
+      "h": 208,
+      "action": "waiting",
+      "label": "等待 · 耐心待机",
+      "stripIndex": 1,
+      "source": "petdex:hoops",
+      "trim": {
+        "x": 219,
+        "y": 1253,
+        "w": 170,
+        "h": 198
+      }
+    },
+    {
+      "index": 50,
+      "column": 2,
+      "row": 6,
+      "x": 416,
+      "y": 1248,
+      "w": 208,
+      "h": 208,
+      "action": "waiting",
+      "label": "等待 · 耐心待机",
+      "stripIndex": 2,
+      "source": "petdex:hoops",
+      "trim": {
+        "x": 427,
+        "y": 1253,
+        "w": 170,
+        "h": 198
+      }
+    },
+    {
+      "index": 51,
+      "column": 3,
+      "row": 6,
+      "x": 624,
+      "y": 1248,
+      "w": 208,
+      "h": 208,
+      "action": "waiting",
+      "label": "等待 · 耐心待机",
+      "stripIndex": 3,
+      "source": "petdex:hoops",
+      "trim": {
+        "x": 634,
+        "y": 1253,
+        "w": 171,
+        "h": 198
+      }
+    },
+    {
+      "index": 52,
+      "column": 4,
+      "row": 6,
+      "x": 832,
+      "y": 1248,
+      "w": 208,
+      "h": 208,
+      "action": "waiting",
+      "label": "等待 · 耐心待机",
+      "stripIndex": 4,
+      "source": "petdex:hoops",
+      "trim": {
+        "x": 851,
+        "y": 1253,
+        "w": 154,
+        "h": 198
+      }
+    },
+    {
+      "index": 53,
+      "column": 5,
+      "row": 6,
+      "x": 1040,
+      "y": 1248,
+      "w": 208,
+      "h": 208,
+      "action": "waiting",
+      "label": "等待 · 耐心待机",
+      "stripIndex": 5,
+      "source": "petdex:hoops",
+      "trim": {
+        "x": 1050,
+        "y": 1253,
+        "w": 172,
+        "h": 198
+      }
+    },
+    {
+      "index": 56,
+      "column": 0,
+      "row": 7,
+      "x": 0,
+      "y": 1456,
+      "w": 208,
+      "h": 208,
+      "action": "running",
+      "label": "原地跑",
+      "stripIndex": 0,
+      "source": "petdex:hoops",
+      "trim": {
+        "x": 12,
+        "y": 1461,
+        "w": 167,
+        "h": 198
+      }
+    },
+    {
+      "index": 57,
+      "column": 1,
+      "row": 7,
+      "x": 208,
+      "y": 1456,
+      "w": 208,
+      "h": 208,
+      "action": "running",
+      "label": "原地跑",
+      "stripIndex": 1,
+      "source": "petdex:hoops",
+      "trim": {
+        "x": 218,
+        "y": 1461,
+        "w": 172,
+        "h": 198
+      }
+    },
+    {
+      "index": 58,
+      "column": 2,
+      "row": 7,
+      "x": 416,
+      "y": 1456,
+      "w": 208,
+      "h": 208,
+      "action": "running",
+      "label": "原地跑",
+      "stripIndex": 2,
+      "source": "petdex:hoops",
+      "trim": {
+        "x": 430,
+        "y": 1461,
+        "w": 164,
+        "h": 198
+      }
+    },
+    {
+      "index": 59,
+      "column": 3,
+      "row": 7,
+      "x": 624,
+      "y": 1456,
+      "w": 208,
+      "h": 208,
+      "action": "running",
+      "label": "原地跑",
+      "stripIndex": 3,
+      "source": "petdex:hoops",
+      "trim": {
+        "x": 637,
+        "y": 1461,
+        "w": 165,
+        "h": 198
+      }
+    },
+    {
+      "index": 60,
+      "column": 4,
+      "row": 7,
+      "x": 832,
+      "y": 1456,
+      "w": 208,
+      "h": 208,
+      "action": "running",
+      "label": "原地跑",
+      "stripIndex": 4,
+      "source": "petdex:hoops",
+      "trim": {
+        "x": 844,
+        "y": 1461,
+        "w": 167,
+        "h": 198
+      }
+    },
+    {
+      "index": 61,
+      "column": 5,
+      "row": 7,
+      "x": 1040,
+      "y": 1456,
+      "w": 208,
+      "h": 208,
+      "action": "running",
+      "label": "原地跑",
+      "stripIndex": 5,
+      "source": "petdex:hoops",
+      "trim": {
+        "x": 1054,
+        "y": 1461,
+        "w": 164,
+        "h": 198
+      }
+    },
+    {
+      "index": 64,
+      "column": 0,
+      "row": 8,
+      "x": 0,
+      "y": 1664,
+      "w": 208,
+      "h": 208,
+      "action": "review",
+      "label": "端详 · 思考",
+      "stripIndex": 0,
+      "source": "petdex:hoops",
+      "trim": {
+        "x": 10,
+        "y": 1669,
+        "w": 172,
+        "h": 198
+      }
+    },
+    {
+      "index": 65,
+      "column": 1,
+      "row": 8,
+      "x": 208,
+      "y": 1664,
+      "w": 208,
+      "h": 208,
+      "action": "review",
+      "label": "端详 · 思考",
+      "stripIndex": 1,
+      "source": "petdex:hoops",
+      "trim": {
+        "x": 214,
+        "y": 1669,
+        "w": 180,
+        "h": 198
+      }
+    },
+    {
+      "index": 66,
+      "column": 2,
+      "row": 8,
+      "x": 416,
+      "y": 1664,
+      "w": 208,
+      "h": 208,
+      "action": "review",
+      "label": "端详 · 思考",
+      "stripIndex": 2,
+      "source": "petdex:hoops",
+      "trim": {
+        "x": 423,
+        "y": 1669,
+        "w": 178,
+        "h": 198
+      }
+    },
+    {
+      "index": 67,
+      "column": 3,
+      "row": 8,
+      "x": 624,
+      "y": 1664,
+      "w": 208,
+      "h": 208,
+      "action": "review",
+      "label": "端详 · 思考",
+      "stripIndex": 3,
+      "source": "petdex:hoops",
+      "trim": {
+        "x": 629,
+        "y": 1671,
+        "w": 182,
+        "h": 194
+      }
+    },
+    {
+      "index": 68,
+      "column": 4,
+      "row": 8,
+      "x": 832,
+      "y": 1664,
+      "w": 208,
+      "h": 208,
+      "action": "review",
+      "label": "端详 · 思考",
+      "stripIndex": 4,
+      "source": "petdex:hoops",
+      "trim": {
+        "x": 838,
+        "y": 1669,
+        "w": 179,
+        "h": 198
+      }
+    },
+    {
+      "index": 69,
+      "column": 5,
+      "row": 8,
+      "x": 1040,
+      "y": 1664,
+      "w": 208,
+      "h": 208,
+      "action": "review",
+      "label": "端详 · 思考",
+      "stripIndex": 5,
+      "source": "petdex:hoops",
+      "trim": {
+        "x": 1046,
+        "y": 1669,
+        "w": 179,
+        "h": 198
+      }
+    }
+  ]
+}

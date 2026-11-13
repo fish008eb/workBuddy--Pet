@@ -53,7 +53,7 @@
 - **动图形象**：支持 APNG 逐帧播放（默认 36 帧循环）
 - **情绪表达**：7 种情绪、3 套人格、3 档唠叨，按用量、预算与时间自动开口
 - **完成提示音**：每轮回答结束响一声（两音合成，可关，告警情绪换低沉音）
-- **15 套形象可换**（12 套官方 + 3 套本地）：右键菜单即点即换，本地缓存秒切；也能换成自己的图片
+- **16 套形象可换**（12 套官方 + 4 套本地）：右键菜单即点即换，本地缓存秒切；也能换成自己的图片
 - **生命周期跟随**：打开 WorkBuddy 自动出现，完全退出后自动消失
 - **原生宿主可选**：编译成 `WbPet.exe` 后启动更快、无 PowerShell 进程（情绪与实时状态都依赖它）
 
@@ -103,7 +103,7 @@ powershell -ExecutionPolicy Bypass -File install.ps1 -SkipBuild
 | 鼠标移到角色上 | 显示用量气泡 |
 | 移开鼠标 | 0.45 秒后自动收起 |
 | 左键拖动 | 移动到任意位置（会记住） |
-| 右键 → `换形象` | 15 个预设形象任选，切换即时生效 |
+| 右键 → `换形象` | 16 个预设形象任选，切换即时生效 |
 | 右键 → `人格` | 可爱治愈 / 毒舌吐槽 / 克制工程师 |
 | 右键 → `唠叨程度` | 克制 / 话痨 / 极简 |
 | 右键 → `提示音` | 开 / 关 / 试听 |
@@ -258,16 +258,17 @@ WorkBuddy 周报 11-02 ~ 11-06
 
 ## 七、换形象（换肤）
 
-右键角色 → `换形象`，3 个本地形象（雪碧图的 `tuantuan` / `keke` / `naigai`）+ 12 个官方网络形象任选，点完 1 秒内切换，不用重启。**本地形象不联网、随包入库**，详见下方「雪碧图形象：团团 / 可可 / 奶盖」。
+右键角色 → `换形象`，4 个本地形象（雪碧图的 `tuantuan` / `keke` / `naigai` / `hoops`）+ 12 个官方网络形象任选，点完 1 秒内切换，不用重启。**本地形象不联网、随包入库**，详见下方「雪碧图形象：团团 / 可可 / 奶盖 / 篮球仔」。
 
 | id | 名称 | id | 名称 |
 |---|---|---|---|
 | `tuantuan` | 团团 · 云朵猫（本地） | `keke` | 可可 · 热可可杯（本地） |
-| `naigai` | 奶盖 · 英短猫（本地） | `quantum` | 量子喵 |
-| `sweet` | 甜心喵 | `academy` | 学院喵 |
-| `pixel` | 像素喵 | `archive` | 档案喵 |
-| `latte` | 拿铁喵 | `design` | 设计喵 |
-| `floral` | 花艺喵 | `elite` | 和平精英喵 |
+| `naigai` | 奶盖 · 英短猫（本地） | `hoops` | 篮球仔 Hoops（本地） |
+| `quantum` | 量子喵 | `academy` | 学院喵 |
+| `sweet` | 甜心喵 | `archive` | 档案喵 |
+| `pixel` | 像素喵 | `design` | 设计喵 |
+| `latte` | 拿铁喵 | `elite` | 和平精英喵 |
+| `floral` | 花艺喵 | `astro` | 星际喵 |
 | `dragon` | 龙焰喵（默认） | `rich` | 暴富喵 |
 
 命令行同样可以切（调用的是同一套逻辑）：
@@ -354,6 +355,33 @@ python tools/build-naigai-atlas.py --preview     # --preview 会额外输出带�
 | 9–15 | happy / proud / surprised / worried / tender / sleepy / calm | 见 manifest | 情绪帧，播完回状态帧 |
 
 帧间隔会乘 `_runSpeed`：执行工具时吃得快、思考时张望得慢，休眠时整体放慢，和原有的运动语言一致。素材来源与逐帧对照见 `assets/atlas/素材对应说明.md`。
+
+### 雪碧图形象：篮球仔 Hoops（第三方 pet 图集）
+
+`hoops` 来自 [Petdex](https://petdex.dev/pets/hoops) 的标准 Codex pet 雪碧图（8 列 × 9 行，单格 192×208，共 57 个有效帧）。它本来就是「按动作分行」的格式，和本项目的槽位模型几乎天然对齐，所以只做了两件事：
+
+| 项 | 值 |
+|---|---|
+| 图集 | `assets/atlas/hoops-atlas@2x.png`（1664×1872，8 列 × 9 行，单格 208，57 个有效帧） |
+| 皮肤目录 | `assets/skins/hoops/manifest.json` |
+| 生成脚本 | `tools/build-hoops-atlas.py`（默认从 petdex 下载，`--from` 可指定本地副本） |
+
+**重排原因**：源图单格是 192×208 的非正方形，而 `PetAtlas` 按正方形 cell 计算裁切矩形，所以每帧左右各补 8px 撑成 208×208。行序、序号都没动（`index = row × 8 + column`），manifest 的 `seq` 直接写绝对序号。
+
+| 槽位 | 状态 | 源行 | 表达 |
+|---|---|---|---|
+| 0 | thinking | review（64–69） | 端详/思考，像在琢磨 |
+| 1 | working | running（56–61） | 原地跑：干活最贴切 |
+| 2 | juggling | runRight（8–15） | 带球冲刺，多个子任务在跑 |
+| 3 | compacting | waiting（48–53） | 站定等一等，整理上下文 |
+| 4 | error | failed（40–47） | 哭脸流泪，明确出错 |
+| 5 | done | jumping（32–36） | 起跳，本轮完成 |
+| 6 | blocked | idle 首两帧（0–1） | 抱着球盯着你等确认 |
+| 7 | sleeping | idle（0–5，放慢） | 慢呼吸 |
+| 8 | attention | waving（24–27） | 挥手喊你看一眼 |
+| 9–15 | 情绪 | jumping / waving / failed / idle | 开心=跳、得意=挥手、惊讶=跳到最高点、担忧=哭脸、心疼/平静=待机、困倦=慢待机 |
+
+**素材版权**：Petdex 上的形象是用户投稿的同人作品（作者 kaidi c.），Petdex 本身不主张权利。这里只登记来源、随包用于本地展示；要公开分发请先确认原作者授权。
 
 ## 八、情绪系统（仅 WbPet.exe 生效）
 
@@ -523,6 +551,7 @@ wb-usage-pet/
 │   ├── skins/tuantuan/      团团 · 云朵猫，只放 atlas 的 manifest.json
 │   ├── skins/keke/          可可 · 热可可杯，只放 atlas 的 manifest.json
 │   ├── skins/naigai/        奶盖 · 英短猫，manifest 里带 seq 动作序列
+│   ├── skins/hoops/         篮球仔 Hoops（Petdex 第三方图集），自带 seq
 │   └── skins/<其它 id>/     运行时生成的缓存与 current.txt（不入库）
 ├── docs/
 │   └── emotion-design.md    情绪系统设计文档
