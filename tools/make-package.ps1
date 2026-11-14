@@ -78,6 +78,7 @@ Copy-Item (Join-Path $root 'install.cmd')     $stage -Force
 Copy-Item (Join-Path $root 'install.ps1')     $stage -Force
 Copy-Item (Join-Path $root 'uninstall.ps1')   $stage -Force
 Copy-Item (Join-Path $root 'README.md')       $stage -Force
+Copy-Item (Join-Path $root 'CHANGELOG.md')    $stage -Force
 Copy-Item (Join-Path $root '安装说明.txt')     $stage -Force
 
 $srcOut = Join-Path $stage 'src'
@@ -87,7 +88,7 @@ $srcSkip = @('*.log', 'panel-data.txt', 'panel-lines.txt', 'last-turn.txt',
              'pet-events.txt', 'pet-events.old.txt', 'pet-ledger.txt', 'pet-state.txt',
              'pet-state.txt.tmp', 'pet-bus.port', 'pet-summary.txt', 'pet-weekly.txt',
              'pet-history.txt', 'pet-budget.txt', 'pet-projects.txt', 'pet-week.txt',
-             '*.exe', '*.pdb')
+             '*.exe', '*.pdb', '*.bak-*')
 Copy-Item (Join-Path $root 'src\*') $srcOut -Recurse -Force -Exclude $srcSkip
 Copy-Item -LiteralPath $Exe (Join-Path $srcOut 'WbPet.exe') -Force
 
@@ -100,6 +101,23 @@ New-Item -ItemType Directory -Force -Path (Join-Path $assetsOut 'sounds') | Out-
 Copy-Item (Join-Path $root 'assets\skins.json')   $assetsOut -Force
 Copy-Item (Join-Path $root 'assets\personas.txt') $assetsOut -Force
 Copy-Item (Join-Path $root 'assets\sounds\*.wav') (Join-Path $assetsOut 'sounds') -Force -ErrorAction SilentlyContinue
+
+# 状态语音在 sounds\voice\ 子目录，上面的 *.wav 通配匹配不到。
+# 漏了这一步，打出来的包里一句语音都没有，而现象是"能启动、开关全开、就是不出声"。
+$voiceSrc = Join-Path $root 'assets\sounds\voice'
+if (Test-Path -LiteralPath $voiceSrc) {
+    $voiceOut = Join-Path $assetsOut 'sounds\voice'
+    New-Item -ItemType Directory -Force -Path $voiceOut | Out-Null
+    Copy-Item -Path (Join-Path $voiceSrc '*') -Destination $voiceOut -Recurse -Force
+    $voiceCount = @(Get-ChildItem $voiceOut -Filter '*.wav' -ErrorAction SilentlyContinue).Count
+    if (Test-Path (Join-Path $voiceOut 'voice-index.txt')) {
+        Write-Ok "copied assets\sounds\voice ($voiceCount wav + voice-index.txt)"
+    } else {
+        Write-Warn2 'assets\sounds\voice 缺少 voice-index.txt，面板不会加载这些语音'
+    }
+} else {
+    Write-Warn2 'assets\sounds\voice 不存在，本次打包不含状态语音'
+}
 
 # 雪碧图形象：assets\atlas\ 放共用的 8x4 图集，skins\tuantuan / skins\keke 只放 manifest
 $atlasSrc = Join-Path $root 'assets\atlas'

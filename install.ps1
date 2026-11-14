@@ -93,6 +93,23 @@ New-Item -ItemType Directory -Force -Path $soundsTarget | Out-Null
 Copy-Item -Path (Join-Path $root 'assets\sounds\*.wav') -Destination $soundsTarget -Force -ErrorAction SilentlyContinue
 Write-Ok '已复制 skins.json / personas.txt / sounds\*.wav / atlas 与 skins\tuantuan、skins\keke（雪碧图形象）'
 
+# 状态语音在 sounds\voice\ 子目录里，上面的 *.wav 通配匹配不到。
+# 漏了这一步的表现很难查：面板照常启动、开关都开着，就是一句话都不出。
+$voiceSrc = Join-Path $root 'assets\sounds\voice'
+if (Test-Path $voiceSrc) {
+    $voiceTarget = Join-Path $soundsTarget 'voice'
+    New-Item -ItemType Directory -Force -Path $voiceTarget | Out-Null
+    Copy-Item -Path (Join-Path $voiceSrc '*') -Destination $voiceTarget -Recurse -Force
+    $voiceCount = @(Get-ChildItem $voiceTarget -Filter '*.wav' -ErrorAction SilentlyContinue).Count
+    if (Test-Path (Join-Path $voiceTarget 'voice-index.txt')) {
+        Write-Ok "已复制状态语音 $voiceCount 条（含 voice-index.txt）"
+    } else {
+        Write-Warn2 "已复制 $voiceCount 条语音，但缺少 voice-index.txt，面板不会加载它们"
+    }
+} else {
+    Write-Warn2 '缺少 assets\sounds\voice\，本次安装没有状态语音（面板仍可用）'
+}
+
 # 面板第一次启动前没有 pet-state.txt，先放一份默认偏好，避免面板与 hook 各写一份
 $stateFile = Join-Path $HooksDir 'pet-state.txt'
 if (-not (Test-Path $stateFile)) {
