@@ -527,6 +527,7 @@ powershell -ExecutionPolicy Bypass -File tools\make-package.ps1
 ```
 wb-usage-pet/
 ├── package.json            项目元信息与 npm 快捷脚本
+├── CHANGELOG.md            更新记录（从 1.6.0 起）
 ├── install.ps1              安装：复制脚本 + 注册 hooks + 下载形象
 ├── uninstall.ps1            卸载：关进程 + 撤 hooks + 删文件
 ├── src/
@@ -542,11 +543,19 @@ wb-usage-pet/
 ├── tools/
 │   ├── fetch-sprite.js      APNG 拆帧工具（零依赖，可当模块用）
 │   ├── switch-skin.js       形象切换：下载 / 缓存 / 改 current.txt
-│   └── build-naigai-atlas.py  奶盖素材 → 抠图 / 切帧 / 图集（Pillow + numpy）
+│   ├── build-naigai-atlas.py  奶盖素材 → 抠图 / 切帧 / 图集（Pillow + numpy）
+│   ├── make-sound.js        合成两个基础提示音
+│   ├── make-package.ps1     打发布包（含素材与源码）
+│   ├── make-voice.py        合成状态语音：edge-tts → 降调 / 滤波 / 响度归一
+│   ├── rebuild-voice-index.py  扫素材目录重建 voice-index.txt
+│   ├── moss-voice/          MOSS 原声合成（权重按需下载，见该目录 README）
+│   └── _archive/            调试期产物（试听页、音色对比），不入库
 ├── assets/
 │   ├── skins.json           形象清单（官方组存下载地址；tuantuan / keke / naigai 为本地形象）
 │   ├── personas.txt         3 套人格文案（可直接改词）
 │   ├── sounds/              提示音 turn-done.wav / turn-alert.wav
+│   │   └── voice/           状态语音（45 条）：eng 用 MOSS 原声模型合成，
+│   │                        cute / snark 用 edge-tts；清单 voice-index.txt
 │   ├── atlas/               雪碧图形象图集（pet-atlas@2x.png 2048×1024 + naigai-atlas@2x.png 1920×1920）
 │   ├── skins/tuantuan/      团团 · 云朵猫，只放 atlas 的 manifest.json
 │   ├── skins/keke/          可可 · 热可可杯，只放 atlas 的 manifest.json
@@ -634,6 +643,11 @@ npm run sprite -- "D:\pic\a.png"   # 拆帧
 
 **没有提示音**
 三个可能：右键 `提示音` 里被关掉了；处于「静音 1 小时」期间（静音同时也静音效）；`assets\sounds\turn-done.wav` 缺失（重新运行安装脚本或 `node tools/make-sound.js`）。想换音色就改这个 wav 文件，任意 16bit PCM WAV 都可以。
+
+**没有状态语音**
+四个可能：右键 `语音` 里被关掉了；「唠叨程度」处于 `极简`（该档一句都不放）；`assets\sounds\voice\voice-index.txt` 缺失；素材目录里没有对应文件（只有 eng 人格配了事件台词）。逐条试听在右键 → `语音` → `事件台词`。
+
+`eng` 的音色来自用电影原声训练的 VITS 模型，见 `tools/moss-voice/README.md`（含重新生成的命令与许可说明）。
 
 ## 十三、卸载
 

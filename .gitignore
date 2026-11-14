@@ -52,3 +52,47 @@ desktop.ini
 # 打包产物
 dist/
 *.tmp
+
+# ---------------------------------------------------------------------------
+# Python 环境与语音工具链
+# ---------------------------------------------------------------------------
+# 两个 venv 加起来超过 1GB，绝对不能入库：tools/.venv-sound 是 edge-tts，
+# tools/.venv-moss 是 MOSS 原声推理（含 torch）。
+tools/.venv*/
+__pycache__/
+*.pyc
+
+# MOSS 声线模型权重（152MB）。
+# 模型许可明确写了不得 copy / distribute / reproduce，
+# 所以权重只在本机存在，由 tools/moss-voice/fetch-model.py 按需下载。
+# 注意：assets/sounds/voice/ 下的 wav 是本项目自己合成的产物，要入库。
+tools/moss-voice/model/*.pth
+tools/moss-voice/model/*.onnx
+tools/moss-voice/model/.cache/
+
+# 上游推理代码由 fetch-model.py 拉取，不入库
+tools/moss-voice/moss-tts-service-master/
+
+# 试跑输出与下载的压缩包
+tools/moss-voice/out*/
+tools/moss-voice/*.zip
+
+# ---------------------------------------------------------------------------
+# 调试期间的临时目录（试听页、音色对比、失败备份）
+# ---------------------------------------------------------------------------
+# 留一份 assets/sounds/voice/ 作为唯一素材来源，其余都是过程产物。
+# 这些目录现在统一收在 tools/_archive/ 下，保留可查但不入库。
+tools/_archive/
+tools/voice-preview/
+tools/voice-compare/
+tools/voice-v1-p18/
+tools/voice-quote-review/
+tools/voice-moss-original/
+tools/voice-moss-work/
+assets/sounds/voice-eng-new/
+assets/sounds/voice.bak-*/
+
+# 面板 exe 的历史备份
+src/*.bak-*
+src/*.exe.bak-*
+
