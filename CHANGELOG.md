@@ -46,5 +46,5 @@
 
 ### 资源
 
-- `assets/sounds/voice/` 45 条 wav（eng 31 + cute 7 + snark 7），约 7.8MB，
+- `assets/sounds/voice/` 73 条 wav（eng 31 + cute 21 + snark 21），约 14MB，
   响度统一归一到 -18.9dBFS，切人格不会忽大忽小。
