@@ -128,6 +128,11 @@ LINES = [
     ('cute_alert_1', 'cute', '有点多啦～'),
     ('cute_alert_2', 'cute', '警告警告！'),
     ('cute_idle_1',  'cute', '我先歇会儿～'),
+    # 事件台词只补最需要"叫住人"的三条：钱、身体、作息。
+    # 其余场景（缓存、里程碑、上下文）看气泡就够了，不必多一张嘴。
+    ('cute_budgetover', 'cute', '呀，预算超了。要不先停一停？'),
+    ('cute_sitlong',    'cute', '坐好久啦，站起来伸个懒腰嘛～'),
+    ('cute_latenight',  'cute', '都这么晚了…早点睡好不好？'),
 
     # ===== snark 毒舌吐槽 =====
     ('snark_start_1', 'snark', '又来活了。'),
@@ -137,6 +142,9 @@ LINES = [
     ('snark_alert_1', 'snark', '又超了。'),
     ('snark_alert_2', 'snark', '你是真能花。'),
     ('snark_idle_1',  'snark', '终于清静了。'),
+    ('snark_budgetover', 'snark', '又超了。月底你打算喝西北风？'),
+    ('snark_sitlong',    'snark', '九十分钟了。你是长椅子上了？'),
+    ('snark_latenight',  'snark', '这个点还不睡。明天别喊困。'),
 ]
 
 TARGET_RATE = 44100
@@ -152,9 +160,13 @@ def is_event(name: str) -> bool:
     return len(parts) >= 2 and parts[1] not in FUNC_NODES
 
 
-# 事件台词用电影原声那种匀速语气：比功能句慢一档。
-# 再慢到 -18% 以下会开始糊字。
-QUOTE_TWEAK = {'rate': '-12%'}
+# 事件台词的语气调整：只对 eng 生效。
+# MOSS 说话本来就不赶时间，慢一档才有那个味道；
+# 但同一套参数套到 snark 上，毒舌会变拖延、笑点全没，cute 会变黏。
+# 所以这里按人格分开，别图省事统一覆盖。
+EVENT_RATE = {
+    'eng': '-12%',
+}
 
 
 # ---------------------------------------------------------------- 音频处理
@@ -343,8 +355,8 @@ async def run(items, out_dir, dry=False, override=None, suffix=''):
     for i, (name, persona, text) in enumerate(items, 1):
         profile = dict(PROFILES[persona])
         event = is_event(name)
-        if event:
-            profile.update(QUOTE_TWEAK)
+        if event and persona in EVENT_RATE:
+            profile['rate'] = EVENT_RATE[persona]
         profile.update(override)
         arrow = f'[{i}/{total}]'
         if dry:
@@ -397,29 +409,12 @@ def main():
         override['band'] = (float(lo), float(hi))
 
     asyncio.run(run(items, args.out, args.dry, override, args.suffix))
+
+    # 这里**不写索引**。素材有两个来源（本脚本的 edge-tts 和 moss-voice 的原声模型），
+    # 任何一边写索引都会把另一边的条目覆盖掉——实测只生成 6 条就把 51 条的索引冲成了 6 条。
+    # 索引统一交给 tools/rebuild-voice-index.py 扫目录生成。
     if not args.dry:
-        write_index(items, args.out, args.suffix)
-
-
-INDEX_HEADER = """# voice-index.txt — 状态语音清单（由 tools/make-voice.py 自动生成，别手改）
-#
-# 格式：文件名|人格|节点|文案
-# 节点：start 开工 / done 完成 / alert 告警 / idle 空闲
-# 面板按「人格 + 节点」找文件，同一节点有多个变体时随机选一条。
-# 改文案请改 make-voice.py 的 LINES 再重跑，清单会跟着更新。
-"""
-
-
-def write_index(items, out_dir, suffix=''):
-    """给面板先生成一份索引，省得 C# 里硬编码 21 个文件名。"""
-    path = os.path.join(out_dir, 'voice-index.txt')
-    lines = [INDEX_HEADER]
-    for name, persona, text in items:
-        node = name.split('_')[1] if '_' in name else ''
-        lines.append(f'{name}{suffix}.wav|{persona}|{node}|{text}')
-    with open(path, 'w', encoding='utf-8', newline='\n') as f:
-        f.write('\n'.join(lines) + '\n')
-    print(f'\n索引已写入 {path}（{len(items)} 条）')
+        print('\n提示：素材已更新，记得跑 tools/rebuild-voice-index.py 重建索引')
 
 
 if __name__ == '__main__':
