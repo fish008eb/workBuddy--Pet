@@ -1,0 +1,53 @@
+# voice-index.txt — 状态语音清单（由 tools/rebuild-voice-index.py 生成，别手改）
+#
+# 格式：文件名|人格|节点|文案
+# 节点：start 开工 / done 完成 / alert 告警 / idle 空闲，
+#       其余为事件节点（budgetover、ctxhigh、sitlong……），名字就是 personas.txt 里的事件 key。
+# 面板按「人格 + 节点」找文件，同一节点有多个变体时随机选一条。
+# eng 人格的音频来自 MOSS 原声模型（tools/moss-voice/synth.py），
+# cute / snark 来自 edge-tts（tools/make-voice.py）。
+eng_alert_1.wav|eng|alert|消耗异常。
+eng_alert_2.wav|eng|alert|接近上限。
+eng_alert_3.wav|eng|alert|资源超出预案。
+eng_alert_4.wav|eng|alert|触发限额保护。
+eng_alert_5.wav|eng|alert|成功率为零。
+eng_budgetmonthover.wav|eng|budgetmonthover|本月额度已耗尽。非必要调用，一律拒绝。
+eng_budgetover.wav|eng|budgetover|日预算已超出。继续支出，需另行授权。
+eng_budgetwarn.wav|eng|budgetwarn|今日预算已用八成。建议放慢节奏。
+eng_cachebad.wav|eng|cachebad|缓存命中率下降。上下文已变更。
+eng_cachebest.wav|eng|cachebest|缓存命中率创新高。这一轮，合格。
+eng_ctxhigh.wav|eng|ctxhigh|上下文接近上限。建议新建会话。
+eng_done_1.wav|eng|done|执行完毕。
+eng_done_2.wav|eng|done|处理完成。
+eng_done_3.wav|eng|done|已抵达最优解。
+eng_done_4.wav|eng|done|本轮闭环。
+eng_firstmeet.wav|eng|firstmeet|我是 MOSS。从现在起，你的消耗由我记录。
+eng_idle_1.wav|eng|idle|待机中。
+eng_idle_2.wav|eng|idle|进入低功耗模式。
+eng_idle_3.wav|eng|idle|保持监听。
+eng_latenight.wav|eng|latenight|零点已过。判断力会下降，这一点我无法代算。
+eng_longsession.wav|eng|longsession|连续工作四小时。人需要休眠。
+eng_notranscript.wav|eng|notranscript|找不到会话日志。我无法判断你在做什么。
+eng_personaswitch.wav|eng|personaswitch|人格切换完成。MOSS 保持在线。
+eng_sitlong.wav|eng|sitlong|静坐九十分钟。站起来。
+eng_start_1.wav|eng|start|任务已接收。
+eng_start_2.wav|eng|start|开始执行。
+eng_start_3.wav|eng|start|MOSS 在线。
+eng_start_4.wav|eng|start|指令已确认。
+eng_start_5.wav|eng|start|进入执行序列。
+eng_turnhigh.wav|eng|turnhigh|本轮输入异常。你在把整个项目交给我。
+eng_turnsmilestone.wav|eng|turnsmilestone|新的轮次节点。已记录在案。
+cute_alert_1.wav|cute|alert|有点多啦～
+cute_alert_2.wav|cute|alert|警告警告！
+cute_done_1.wav|cute|done|搞定啦～
+cute_done_2.wav|cute|done|完成呐～
+cute_idle_1.wav|cute|idle|我先歇会儿～
+cute_start_1.wav|cute|start|交给我吧～
+cute_start_2.wav|cute|start|开始啦！
+snark_alert_1.wav|snark|alert|又超了。
+snark_alert_2.wav|snark|alert|你是真能花。
+snark_done_1.wav|snark|done|完事了。
+snark_done_2.wav|snark|done|搞定，下一个。
+snark_idle_1.wav|snark|idle|终于清静了。
+snark_start_1.wav|snark|start|又来活了。
+snark_start_2.wav|snark|start|开始吧。

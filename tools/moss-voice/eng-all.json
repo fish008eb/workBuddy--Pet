@@ -1,0 +1,126 @@
+[
+  {
+    "name": "eng_start_1",
+    "text": "任务已接收。"
+  },
+  {
+    "name": "eng_start_2",
+    "text": "开始执行。"
+  },
+  {
+    "name": "eng_start_3",
+    "text": "MOSS 在线。"
+  },
+  {
+    "name": "eng_start_4",
+    "text": "指令已确认。"
+  },
+  {
+    "name": "eng_start_5",
+    "text": "进入执行序列。"
+  },
+  {
+    "name": "eng_done_1",
+    "text": "执行完毕。"
+  },
+  {
+    "name": "eng_done_2",
+    "text": "处理完成。"
+  },
+  {
+    "name": "eng_done_3",
+    "text": "已抵达最优解。"
+  },
+  {
+    "name": "eng_done_4",
+    "text": "本轮闭环。"
+  },
+  {
+    "name": "eng_alert_1",
+    "text": "消耗异常。"
+  },
+  {
+    "name": "eng_alert_2",
+    "text": "接近上限。"
+  },
+  {
+    "name": "eng_alert_3",
+    "text": "资源超出预案。"
+  },
+  {
+    "name": "eng_alert_4",
+    "text": "触发限额保护。"
+  },
+  {
+    "name": "eng_alert_5",
+    "text": "成功率为零。"
+  },
+  {
+    "name": "eng_idle_1",
+    "text": "待机中。"
+  },
+  {
+    "name": "eng_idle_2",
+    "text": "进入低功耗模式。"
+  },
+  {
+    "name": "eng_idle_3",
+    "text": "保持监听。"
+  },
+  {
+    "name": "eng_firstmeet",
+    "text": "我是 MOSS。从现在起，你的消耗由我记录。"
+  },
+  {
+    "name": "eng_budgetwarn",
+    "text": "今日预算已用八成。建议放慢节奏。"
+  },
+  {
+    "name": "eng_budgetover",
+    "text": "日预算已超出。继续支出，需另行授权。"
+  },
+  {
+    "name": "eng_monthover",
+    "text": "本月额度已耗尽。非必要调用，一律拒绝。"
+  },
+  {
+    "name": "eng_ctxhigh",
+    "text": "上下文接近上限。建议新建会话。"
+  },
+  {
+    "name": "eng_cachebad",
+    "text": "缓存命中率下降。上下文已变更。"
+  },
+  {
+    "name": "eng_cachebest",
+    "text": "缓存命中率创新高。这一轮，合格。"
+  },
+  {
+    "name": "eng_longsession",
+    "text": "连续工作四小时。人需要休眠。"
+  },
+  {
+    "name": "eng_latenight",
+    "text": "零点已过。判断力会下降，这一点我无法代算。"
+  },
+  {
+    "name": "eng_milestone",
+    "text": "新的轮次节点。已记录在案。"
+  },
+  {
+    "name": "eng_sitlong",
+    "text": "静坐九十分钟。站起来。"
+  },
+  {
+    "name": "eng_personaswitch",
+    "text": "人格切换完成。MOSS 保持在线。"
+  },
+  {
+    "name": "eng_notranscript",
+    "text": "找不到会话日志。我无法判断你在做什么。"
+  },
+  {
+    "name": "eng_turnhigh",
+    "text": "本轮输入异常。你在把整个项目交给我。"
+  }
+]

@@ -64,6 +64,10 @@ function formatEvent(ev) {
     sanitize(ev.title, 40),
     sanitize(ev.text, MAX_TEXT),
     ev.durSec,
+    // 第 11 列：事件 key（budgetOver / ctxHigh / sitLong…）。
+    // 面板拿它去 voice-index.txt 里找对应语音，没有这个字段就只能随机播。
+    // 追加在末尾而不是插在中间，老版本面板只读前 10 列，不受影响。
+    sanitize(ev.key, 24),
   ].join('|');
 }
 
@@ -100,6 +104,7 @@ function appendEvent(file, ev, baseSeq) {
     title: ev.title || '',
     text: ev.text || '',
     durSec: ev.durSec === undefined ? 6 : ev.durSec,
+    key: ev.key || '',
   };
 
   try {

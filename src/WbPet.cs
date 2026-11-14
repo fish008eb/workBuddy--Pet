@@ -81,6 +81,8 @@ namespace WbPet
             public string Title = "";
             public string Text = "";
             public int DurSec = 6;
+            /** 事件 key（budgetOver / ctxHigh / sitLong…），空表示这条事件不配语音 */
+            public string Key = "";
         }
 
         private readonly string _baseDir;
@@ -195,6 +197,24 @@ namespace WbPet
         private SoundPlayer _alertSound;
         private bool _soundOn = true;
         private string _lastEmotion = "calm";
+
+        // ---- 状态语音：按「人格|节点」分组，同一节点多个变体时随机选 ----
+        // 素材由 tools/make-voice.py 生成，清单是 assets/sounds/voice/voice-index.txt。
+        // 和 _doneSound 那套老提示音并存：语音关掉或缺失时自动退回老提示音。
+        // 必须忽略大小写：personas.txt / pet-emotion.js 里的 key 是驼峰（budgetOver、ctxHigh），
+        // 而素材文件名统一用小写（eng_budgetover.wav）。区分大小写的话一句都对不上，
+        // 表现就是"语音开关明明开着，却一声不响"——很难查。
+        private readonly Dictionary<string, List<SoundPlayer>> _voiceMap =
+            new Dictionary<string, List<SoundPlayer>>(StringComparer.OrdinalIgnoreCase);
+        private SoundPlayer _voiceBusy;   // 正在播的那条，放新语音前先掐掉，避免叠音
+        /** 上一次念「事件台词」的时刻。用来压掉同轮的完成音，别让两句话抢着说 */
+        private DateTime _lastEventVoiceAt = DateTime.MinValue;
+        /** 最近一小时念过事件台词的时刻，用于全局限流（每小时最多两句） */
+        private readonly List<DateTime> _eventVoiceAt = new List<DateTime>();
+        private bool _voiceOn = true;
+        private readonly Dictionary<string, DateTime> _voiceLastAt =
+            new Dictionary<string, DateTime>(StringComparer.OrdinalIgnoreCase);
+        private readonly Random _rand = new Random();
 
         // ---- live state (fed by the hook bus, read by the UI thread) ----
         private TcpListener _bus;
@@ -790,6 +810,80 @@ namespace WbPet
 
             menu.Items.Add(soundRoot);
 
+            // voice：和「提示音」分开，用户想留提示音、关掉语音是很常见的组合
+            MenuItem voiceRoot = new MenuItem();
+            voiceRoot.Header = "\u8BED\u97F3";
+
+            MenuItem voiceOn = new MenuItem();
+            voiceOn.Header = "\u5F00";
+            voiceOn.IsChecked = _voiceOn;
+            voiceOn.Click += delegate { SetVoice(true, voiceRoot); };
+            voiceRoot.Items.Add(voiceOn);
+
+            MenuItem voiceOff = new MenuItem();
+            voiceOff.Header = "\u5173";
+            voiceOff.IsChecked = !_voiceOn;
+            voiceOff.Click += delegate { SetVoice(false, voiceRoot); };
+            voiceRoot.Items.Add(voiceOff);
+
+            voiceRoot.Items.Add(new Separator());
+
+            // 分节点试听：调音色时要能单听某一档，不然只能等真实任务触发
+            string[][] tryItems = new string[][]
+            {
+                new string[] { "start", "\u5F00\u5DE5" },
+                new string[] { "done", "\u5B8C\u6210" },
+                new string[] { "alert", "\u544A\u8B66" },
+                new string[] { "idle", "\u7A7A\u95F2" }
+            };
+            foreach (string[] ti in tryItems)
+            {
+                string node = ti[0];
+                MenuItem item = new MenuItem();
+                item.Header = ti[1] + " \u8BD5\u542C";
+                item.Click += delegate { TryPlayVoice(node, true); };
+                voiceRoot.Items.Add(item);
+            }
+
+            // 事件台词：预算、上下文、久坐这些，只有命中场景才自动播，
+            // 平时想听一句只能等运气。收进二级菜单，逐条能点。
+            // 当前人格没配的节点直接不出现，菜单不会出现点了没反应的死项。
+            string[][] eventItems = new string[][]
+            {
+                new string[] { "firstmeet",    "\u9996\u6B21\u542F\u52A8" },
+                new string[] { "budgetwarn",   "\u9884\u7B97\u63D0\u9192" },
+                new string[] { "budgetover",   "\u9884\u7B97\u8D85\u652F" },
+                new string[] { "budgetmonthover", "\u6708\u5EA6\u8017\u5C3D" },
+                new string[] { "ctxhigh",      "\u4E0A\u4E0B\u6587\u544A\u8B66" },
+                new string[] { "cachebad",     "\u7F13\u5B58\u4E0B\u8DCC" },
+                new string[] { "cachebest",    "\u7F13\u5B58\u65B0\u9AD8" },
+                new string[] { "longsession",  "\u957F\u65F6\u95F4\u5DE5\u4F5C" },
+                new string[] { "latenight",    "\u6DF1\u591C" },
+                new string[] { "turnsmilestone", "\u91CC\u7A0B\u7891" },
+                new string[] { "sitlong",      "\u4E45\u5750" },
+                new string[] { "personaswitch","\u5207\u4EBA\u683C" },
+                new string[] { "notranscript", "\u65E5\u5FD7\u7F3A\u5931" },
+                new string[] { "turnhigh",     "\u8F93\u5165\u5F02\u5E38" }
+            };
+            MenuItem eventRoot = new MenuItem();
+            eventRoot.Header = "\u4E8B\u4EF6\u53F0\u8BCD";
+            foreach (string[] ei in eventItems)
+            {
+                string node = ei[0];
+                if (!HasVoice(node)) { continue; }
+                MenuItem item = new MenuItem();
+                item.Header = ei[1] + " \u8BD5\u542C";
+                item.Click += delegate { TryPlayVoice(node, true); };
+                eventRoot.Items.Add(item);
+            }
+            if (eventRoot.Items.Count > 0)
+            {
+                voiceRoot.Items.Add(new Separator());
+                voiceRoot.Items.Add(eventRoot);
+            }
+
+            menu.Items.Add(voiceRoot);
+
             menu.Items.Add(new Separator());
 
             MenuItem mute = new MenuItem();
@@ -1070,7 +1164,22 @@ namespace WbPet
             ev.Title = PersonaTitle();
             ev.Text = RenderText("personaSwitch", new Dictionary<string, string> { { "name", PersonaName() } });
             ev.DurSec = 5;
+            // eng 有专门的"人格切换完成"台词，就用它；
+            // cute/snark 没有，退回原来的开工音当确认。
+            bool hasSwitchVoice = HasVoice("personaswitch");
+            if (hasSwitchVoice) { ev.Key = "personaswitch"; }
             PlayEvent(ev);
+
+            // 换人格等于换嗓，放一条新人格的语音作为确认。
+            // 走正常门控（不 force）：语音关着或处于 minimal 档时，静默是用户的明确选择。
+            if (!hasSwitchVoice) { TryPlayVoice("start"); }
+        }
+
+        /** 当前人格下这个节点有没有配语音（_voiceMap 的键是「人格|节点」） */
+        private bool HasVoice(string node)
+        {
+            List<SoundPlayer> list;
+            return _voiceMap.TryGetValue(_persona + "|" + node, out list) && list.Count > 0;
         }
 
         private void OnVerbosityClick(object sender, RoutedEventArgs e)
@@ -1096,6 +1205,19 @@ namespace WbPet
         {
             _soundOn = on;
             // 立刻落盘，跳过 SaveState 的防抖
+            _lastSaveAt = DateTime.MinValue;
+            SaveState();
+            if (root == null) { return; }
+            for (int i = 0; i < root.Items.Count && i < 2; i++)
+            {
+                MenuItem mi = root.Items[i] as MenuItem;
+                if (mi != null) { mi.IsChecked = (i == 0) == on; }
+            }
+        }
+
+        private void SetVoice(bool on, MenuItem root)
+        {
+            _voiceOn = on;
             _lastSaveAt = DateTime.MinValue;
             SaveState();
             if (root == null) { return; }
@@ -1232,16 +1354,145 @@ namespace WbPet
                 }
             }
             catch (Exception) { }
+            LoadVoiceIndex();
         }
 
-        /** 每轮结束响一声；静音期与关闭音效时不响 */
+        /**
+         * 读 voice/voice-index.txt，把状态语音按「人格|节点」分组预加载。
+         *
+         * 走索引而不是扫目录，是为了让「人格 + 节点」的对应关系有个显式出处：
+         * 以后加语音只要重跑 make-voice.py，C# 这边一行不用改。
+         * 素材缺失时整段跳过，不抛异常 —— 桌宠宁可没声音，也不能因为少个 wav 起不来。
+         */
+        private void LoadVoiceIndex()
+        {
+            try
+            {
+                string dir = Path.Combine(_soundsDir, "voice");
+                string index = Path.Combine(dir, "voice-index.txt");
+                if (!File.Exists(index)) { return; }
+
+                _voiceMap.Clear();
+                foreach (string raw in File.ReadAllLines(index, Encoding.UTF8))
+                {
+                    string line = raw.Trim();
+                    if (line.Length == 0 || line[0] == '#') { continue; }
+                    string[] p = line.Split('|');
+                    if (p.Length < 3) { continue; }
+
+                    string file = Path.Combine(dir, p[0].Trim());
+                    if (!File.Exists(file)) { continue; }
+
+                    string key = p[1].Trim() + "|" + p[2].Trim();
+                    SoundPlayer player = new SoundPlayer(file);
+                    player.Load();
+
+                    List<SoundPlayer> list;
+                    if (!_voiceMap.TryGetValue(key, out list))
+                    {
+                        list = new List<SoundPlayer>();
+                        _voiceMap[key] = list;
+                    }
+                    list.Add(player);
+                }
+            }
+            catch (Exception ex) { LogError("LoadVoiceIndex", ex); }
+        }
+
+        /**
+         * 语音该不该出声。唠叨程度是总闸，和「语音开关」「音效开关」「静音期」叠加：
+         *   minimal  一句都不放（只剩老提示音）
+         *   normal   只放关键节点（开工 / 完成 / 告警）
+         *   chatty   连空闲也放
+         * 空闲必须只在 chatty 下出声 —— 它信息量最低，是最容易被烦到的那一档。
+         */
+        private bool VoiceAllowed(string node)
+        {
+            if (!_voiceOn || !_soundOn) { return false; }
+            if (DateTime.Now < _quietUntil) { return false; }
+            if (_verbosity == "minimal") { return false; }
+            if (node == "idle" && _verbosity != "chatty") { return false; }
+            return true;
+        }
+
+        private static bool IsWorkState(string s)
+        {
+            return s == "working" || s == "thinking" || s == "juggling" || s == "compacting";
+        }
+
+        /** 事件台词（预算超支、久坐…）和四个高频功能节点要分开限流 */
+        private static bool IsEventNode(string node)
+        {
+            return node != "start" && node != "done" && node != "alert" && node != "idle";
+        }
+
+        /**
+         * 放一条状态语音。成功返回 true。
+         * force=true 用于菜单试听：跳过开关判断和冷却，否则在 minimal 档下点试听没反应很怪。
+         */
+        private bool TryPlayVoice(string node, bool force = false)
+        {
+            if (!force && !VoiceAllowed(node)) { return false; }
+
+            if (!force)
+            {
+                DateTime last;
+                bool isEvent = IsEventNode(node);
+
+                // 同一节点冷却：功能句 8 秒（状态在 idle/working 之间会抖动），
+                // 事件台词 30 分钟 —— 连着几轮超预算，不该每轮都念一遍"日预算已超出"。
+                double cool = isEvent ? 1800 : 8;
+                if (_voiceLastAt.TryGetValue(node, out last) &&
+                    (DateTime.Now - last).TotalSeconds < cool) { return false; }
+
+                // 事件台词是长句（3~5 秒），不同事件扎堆出现一样会吵：
+                // 一小时最多两句，超了就只留气泡文字。
+                if (isEvent)
+                {
+                    _eventVoiceAt.RemoveAll(delegate(DateTime t) { return (DateTime.Now - t).TotalHours >= 1; });
+                    if (_eventVoiceAt.Count >= 2) { return false; }
+                }
+            }
+
+            List<SoundPlayer> list;
+            string key = _persona + "|" + node;
+            if (!_voiceMap.TryGetValue(key, out list) || list.Count == 0) { return false; }
+
+            try
+            {
+                if (_voiceBusy != null) { _voiceBusy.Stop(); }
+                SoundPlayer player = list.Count == 1 ? list[0] : list[_rand.Next(list.Count)];
+                player.Play();
+                _voiceBusy = player;
+                _voiceLastAt[node] = DateTime.Now;
+
+                // 事件台词（budgetOver、sitLong…）比功能句长得多，
+                // 记下时刻，好让紧随其后的完成音别把它掐断。
+                if (IsEventNode(node))
+                {
+                    _lastEventVoiceAt = DateTime.Now;
+                    _eventVoiceAt.Add(DateTime.Now);
+                }
+                return true;
+            }
+            catch (Exception) { return false; }
+        }
+
+        /** 每轮结束响一声：优先语音，语音关了或没素材就退回原来的提示音（二选一，不叠） */
         private void PlayDoneSound()
         {
             if (!_soundOn) { return; }
             if (DateTime.Now < _quietUntil) { return; }
+
+            // 刚念过事件台词就别再接一句"执行完毕"：事件台词本身就是这一轮的结论，
+            // 而且它通常有 3~5 秒，完成音一进来就会把它掐断。
+            if ((DateTime.Now - _lastEventVoiceAt).TotalSeconds < 8) { return; }
+
             try
             {
-                SoundPlayer player = _lastEmotion == "worried" && _alertSound != null ? _alertSound : _doneSound;
+                bool worried = _lastEmotion == "worried";
+                if (TryPlayVoice(worried ? "alert" : "done")) { return; }
+                SoundPlayer player = worried && _alertSound != null ? _alertSound : _doneSound;
                 if (player != null) { player.Play(); }
             }
             catch (Exception) { }
@@ -1766,6 +2017,9 @@ namespace WbPet
             ev.Text = p[8];
             int dur;
             ev.DurSec = int.TryParse(p[9], out dur) ? dur : 6;
+            // 第 11 列是后加的事件 key。老格式只有 10 列，取不到就当没有，
+            // 这样面板和钩子可以各自独立升级，不会因为版本不一致就哑掉。
+            if (p.Length >= 11) { ev.Key = p[10].Trim(); }
             return ev;
         }
 
@@ -1833,6 +2087,11 @@ namespace WbPet
             _tempUntil = now.AddSeconds(Math.Max(3, ev.DurSec));
 
             PlayMotion(ev.Motion);
+
+            // 事件语音：key 在 voice-index.txt 里能查到才播。
+            // 目前只有 eng 人格配了事件台词，cute/snark 查不到就静默跳过，
+            // 所以这里不用按人格判断——查不到本身就是判断。
+            if (ev.Key.Length > 0) { TryPlayVoice(ev.Key); }
 
             // 情绪帧：atlas 皮肤额外贴一帧表情，逐帧皮肤没有这一层（ApplyPetFrame 直接返回）。
             // 不用显式「回退」——ApplyPetFrame 里 _emoSlotUntil 到期后自然回到状态帧。
@@ -2158,6 +2417,12 @@ namespace WbPet
                 if (state == "error") { Shake(); }
                 else if (state == "done") { Bounce(9, 2, 280); }
                 else if (state == "blocked") { ShowPendingCard(); }
+
+                // 语音只在这里挂「开工」和「空闲」两个节点。
+                // 「完成」不放这里：它走 PlayDoneSound 那条路（统计文件落盘才算一轮真的结束），
+                // 两处都放会一声双响。
+                if (IsWorkState(state) && !IsWorkState(prev)) { TryPlayVoice("start"); }
+                else if (state == "idle" && IsWorkState(prev)) { TryPlayVoice("idle"); }
             }
 
             UpdateStateLine(state);
@@ -2500,6 +2765,7 @@ namespace WbPet
             ev.Title = (emoji.Length > 0 ? emoji + " " : "") + PersonaTitle();
             ev.Text = RenderText(key, vars);
             ev.DurSec = durSec;
+            ev.Key = key;   // 让 PlayEvent 顺带播这条事件的语音
             if (!AllowPlay(ev)) { return; }
             PlayEvent(ev);
         }
@@ -2535,6 +2801,7 @@ namespace WbPet
                     if (k == "persona" && v.Length > 0) { _persona = v; }
                     else if (k == "verbosity" && v.Length > 0) { _verbosity = v; }
                     else if (k == "sound") { _soundOn = v != "off"; }
+                    else if (k == "voice") { _voiceOn = v != "off"; }
                     else if (k == "topmost") { _topmostOn = v != "off"; }
                     else if (k == "winX") { int.TryParse(v, out x); }
                     else if (k == "winY") { int.TryParse(v, out y); }
@@ -2569,6 +2836,7 @@ namespace WbPet
                 sb.AppendLine("persona=" + _persona);
                 sb.AppendLine("verbosity=" + _verbosity);
                 sb.AppendLine("sound=" + (_soundOn ? "on" : "off"));
+                sb.AppendLine("voice=" + (_voiceOn ? "on" : "off"));
                 sb.AppendLine("topmost=" + (_topmostOn ? "on" : "off"));
                 sb.AppendLine("winX=" + (int)Left);
                 sb.AppendLine("winY=" + (int)Top);
