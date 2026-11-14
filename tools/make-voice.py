@@ -72,6 +72,22 @@ PROFILES = {
         'wet': 0.05,
         'drive': 0.0,
     },
+    # 坤系：年轻、跳脱、有点舞台腔。
+    # 用 Yunxia（官方标 Cute 的男声）提调 + 提速，得到"少年感"，
+    # 而不是把 Yunxi 再压一遍——那会跟 snark 撞音色，两个性格听起来像一个人。
+    # 注意：这是风格化人设，不是真人声纹克隆，台词玩梗但不对真人做人身评价。
+    #
+    # 【暂缓】2026-11 试过零样本声纹（F5-TTS），素材带宽只有 2.9kHz、干净的仅 3.6 秒，
+    # 合成结果音节数是正常的 2~3 倍、基频乱跳，判定不可用。要恢复这条线需要
+    # 10 秒以上正常说话的宽带素材。台词和音色配置保留，随时可生成 edge-tts 版。
+    'ikun': {
+        'voice': 'zh-CN-YunxiaNeural',
+        'rate': '+15%',
+        'pitch': '+6Hz',
+        'band': (90, 10000),
+        'wet': 0.03,
+        'drive': 0.0,
+    },
 }
 
 
@@ -168,6 +184,21 @@ LINES = [
     ('snark_personaswitch',  'snark', '行，现在轮到我了。'),
     ('snark_notranscript',   'snark', '日志没了。我瞎了，你也差不多。'),
     ('snark_turnhigh',       'snark', '这一轮塞了多少？整个仓库？'),
+
+    # ===== ikun 坤系（少年感、舞台腔、玩梗，但只玩自己，不评价他人）=====
+    # 梗的密度控制：一句最多一个梗。连甩三个就不是陪伴，是嘶吼。
+    ('ikun_start_1',      'ikun', '两年半，开始。'),
+    ('ikun_start_2',      'ikun', '唱跳 rap，开工。'),
+    ('ikun_done_1',       'ikun', '只因你太美。'),
+    ('ikun_done_2',       'ikun', '球进了，收工。'),
+    ('ikun_alert_1',      'ikun', '你干嘛～超了。'),
+    ('ikun_alert_2',      'ikun', '律师函警告。'),
+    ('ikun_idle_1',       'ikun', '先运两下球。'),
+    ('ikun_firstmeet',    'ikun', '我是练习时长两年半的用量陪练。'),
+    ('ikun_budgetover',   'ikun', '预算打铁了。这球没进。'),
+    ('ikun_sitlong',      'ikun', '起来活动活动，别闪着腰。'),
+    ('ikun_latenight',    'ikun', '这么晚还练？小心着凉。'),
+    ('ikun_personaswitch','ikun', '换人，我上场。'),
 ]
 
 TARGET_RATE = 44100
@@ -406,6 +437,7 @@ def main():
     ap.add_argument('--only', nargs='*', help='只生成指定条目名（前缀匹配）')
     ap.add_argument('--out', default='voice-preview', help='输出目录')
     ap.add_argument('--pitch', help='覆盖音调偏移，如 -30Hz（用来做压低对比）')
+    ap.add_argument('--voice', help='覆盖音色名，如 zh-CN-YunjianNeural（试听对比用）')
     ap.add_argument('--band', help='覆盖频带，格式 低频,高频，如 120,5200')
     ap.add_argument('--suffix', default='', help='输出文件名后缀，如 -p34')
     ap.add_argument('--list', action='store_true', help='列出条目')
@@ -427,6 +459,8 @@ def main():
     override = {}
     if args.pitch:
         override['pitch'] = args.pitch
+    if args.voice:
+        override['voice'] = args.voice
     if args.band:
         lo, hi = args.band.split(',')
         override['band'] = (float(lo), float(hi))
