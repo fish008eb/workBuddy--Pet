@@ -128,11 +128,22 @@ LINES = [
     ('cute_alert_1', 'cute', '有点多啦～'),
     ('cute_alert_2', 'cute', '警告警告！'),
     ('cute_idle_1',  'cute', '我先歇会儿～'),
-    # 事件台词只补最需要"叫住人"的三条：钱、身体、作息。
-    # 其余场景（缓存、里程碑、上下文）看气泡就够了，不必多一张嘴。
-    ('cute_budgetover', 'cute', '呀，预算超了。要不先停一停？'),
-    ('cute_sitlong',    'cute', '坐好久啦，站起来伸个懒腰嘛～'),
-    ('cute_latenight',  'cute', '都这么晚了…早点睡好不好？'),
+    # 事件台词与 eng 同一套场景，但语气独立成篇。
+    # cute 的原则：不说教、先共情、再给一个很小的动作建议。
+    ('cute_firstmeet',        'cute', '以后你的用量，我帮你看着～'),
+    ('cute_budgetwarn',       'cute', '预算用了八成啦，后面省着点喵。'),
+    ('cute_budgetover',       'cute', '呀，预算超了。要不先停一停？'),
+    ('cute_budgetmonthover',  'cute', '这个月的额度用光啦…下个月再冲？'),
+    ('cute_ctxhigh',          'cute', '上下文快满啦，开个新会话会舒服些。'),
+    ('cute_cachebad',         'cute', '缓存掉下来了，是不是换了上下文呀？'),
+    ('cute_cachebest',        'cute', '缓存创新高！今天好省呀～'),
+    ('cute_longsession',      'cute', '已经连着干四个小时啦，喝口水吧。'),
+    ('cute_latenight',        'cute', '都这么晚了…早点睡好不好？'),
+    ('cute_turnsmilestone',   'cute', '又到一个新节点啦，我都记着呢。'),
+    ('cute_sitlong',          'cute', '坐好久啦，站起来伸个懒腰嘛～'),
+    ('cute_personaswitch',    'cute', '换好啦，我在这儿呢。'),
+    ('cute_notranscript',     'cute', '找不到会话日志，我看不见你在做什么…'),
+    ('cute_turnhigh',         'cute', '这一轮好多呀，我有点晕…'),
 
     # ===== snark 毒舌吐槽 =====
     ('snark_start_1', 'snark', '又来活了。'),
@@ -142,9 +153,21 @@ LINES = [
     ('snark_alert_1', 'snark', '又超了。'),
     ('snark_alert_2', 'snark', '你是真能花。'),
     ('snark_idle_1',  'snark', '终于清静了。'),
-    ('snark_budgetover', 'snark', '又超了。月底你打算喝西北风？'),
-    ('snark_sitlong',    'snark', '九十分钟了。你是长椅子上了？'),
-    ('snark_latenight',  'snark', '这个点还不睡。明天别喊困。'),
+    # snark 的原则：短、刺、用反问收尾，不安慰，也不解释。
+    ('snark_firstmeet',      'snark', '哦，你又来烧 token 了。'),
+    ('snark_budgetwarn',     'snark', '八成没了。悠着点。'),
+    ('snark_budgetover',     'snark', '又超了。月底你打算喝西北风？'),
+    ('snark_budgetmonthover','snark', '月度额度清零。下个月见。'),
+    ('snark_ctxhigh',        'snark', '上下文快溢出来了，还塞？'),
+    ('snark_cachebad',       'snark', '缓存掉了。你又改上下文了？'),
+    ('snark_cachebest',      'snark', '缓存新高。行吧，这次算你聪明。'),
+    ('snark_longsession',    'snark', '四个小时了。屁股还好吗？'),
+    ('snark_latenight',      'snark', '这个点还不睡。明天别喊困。'),
+    ('snark_turnsmilestone', 'snark', '又一个节点。你还真能熬。'),
+    ('snark_sitlong',        'snark', '九十分钟了。你是长椅子上了？'),
+    ('snark_personaswitch',  'snark', '行，现在轮到我了。'),
+    ('snark_notranscript',   'snark', '日志没了。我瞎了，你也差不多。'),
+    ('snark_turnhigh',       'snark', '这一轮塞了多少？整个仓库？'),
 ]
 
 TARGET_RATE = 44100
